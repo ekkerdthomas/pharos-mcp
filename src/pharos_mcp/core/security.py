@@ -42,8 +42,10 @@ class QueryValidator:
     ]
 
     # Allowed query patterns (for read-only mode)
+    # Supports SELECT and WITH (CTEs - Common Table Expressions)
     READONLY_PATTERNS = [
         r"^\s*SELECT\b",
+        r"^\s*WITH\b",  # CTEs (Common Table Expressions) are read-only
     ]
 
     def __init__(self, readonly: bool = True, allowed_operations: list[str] | None = None):

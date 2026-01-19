@@ -1211,17 +1211,31 @@ def register_schema_tools(mcp: FastMCP) -> None:
         is_pk = bool(db.execute_query(pk_sql, (table_name, column_name)))
 
         # Get sample distinct values
+        # Use explicit column aliases to avoid pymssql as_dict issues with unnamed columns
         sample_sql = f"""
             SELECT TOP 15 [{column_name}] as val, COUNT(*) as cnt
             FROM [{table_name}]
-            WHERE [{column_name}] IS NOT NULL AND [{column_name}] <> ''
+            WHERE [{column_name}] IS NOT NULL AND CAST([{column_name}] AS VARCHAR(MAX)) <> ''
             GROUP BY [{column_name}]
             ORDER BY COUNT(*) DESC
         """
         try:
             samples = db.execute_query(sample_sql, max_rows=15)
-        except Exception:
+        except Exception as e:
+            # Handle edge cases where query fails (binary columns, certain data types, etc.)
             samples = []
+            # Try a simpler fallback query without the empty string filter
+            try:
+                fallback_sql = f"""
+                    SELECT TOP 10 [{column_name}] as val, COUNT(*) as cnt
+                    FROM [{table_name}]
+                    WHERE [{column_name}] IS NOT NULL
+                    GROUP BY [{column_name}]
+                    ORDER BY COUNT(*) DESC
+                """
+                samples = db.execute_query(fallback_sql, max_rows=10)
+            except Exception:
+                samples = []
 
         # Get total count
         total_sql = f"SELECT COUNT(*) FROM [{table_name}]"
@@ -1616,6 +1630,9 @@ def register_schema_tools(mcp: FastMCP) -> None:
                 - inventory: Stock levels by warehouse
                 - invoices: Invoice listing
                 - suppliers: Supplier master list
+                - income_statement: Income statement by GL group
+                - income_statement_summary: P&L summary totals
+                - balance_sheet: Balance sheet by account type
                 - purchase_orders: Open purchase orders
                 - jobs: Work in progress jobs
                 - list: Show all available templates
@@ -2301,6 +2318,93 @@ SELECT TOP 100
     t.CustSupName
 FROM InvSerialTrn t
 ORDER BY t.EntryDate DESC, t.StockCode, t.Serial''',
+
+            "income_statement": '''-- Income Statement (Current Period)
+-- Revenue (GlGroup 01xx) - shown as positive
+-- Cost of Sales (GlGroup 02xx) - shown as expense
+-- Other Income (GlGroup 03xx) - shown as positive
+-- Operating Expenses (GlGroup 04xx) - shown as expense
+-- Taxation (GlGroup 07xx) - shown as expense
+SELECT
+    CASE
+        WHEN g.GlGroup LIKE '01%' THEN '1-REVENUE'
+        WHEN g.GlGroup LIKE '02%' THEN '2-COST OF SALES'
+        WHEN g.GlGroup LIKE '03%' THEN '3-OTHER INCOME'
+        WHEN g.GlGroup LIKE '04%' THEN '4-OPERATING EXPENSES'
+        WHEN g.GlGroup LIKE '07%' THEN '5-TAXATION'
+    END as Section,
+    gg.Description as LineItem,
+    CASE
+        WHEN g.GlGroup LIKE '01%' OR g.GlGroup LIKE '03%' THEN -SUM(g.CurrentBalance)
+        ELSE SUM(g.CurrentBalance)
+    END as Amount
+FROM GenMaster g
+LEFT JOIN GenGroups gg ON g.GlGroup = gg.GlGroup AND g.Company = gg.Company
+WHERE g.GlGroup LIKE '0[1-7]%'
+GROUP BY g.GlGroup, gg.Description
+HAVING SUM(g.CurrentBalance) <> 0
+ORDER BY 1, 2''',
+
+            "income_statement_summary": '''-- Income Statement Summary Totals
+SELECT
+    'Revenue' as Category,
+    -SUM(CurrentBalance) as Amount
+FROM GenMaster WHERE GlGroup LIKE '01%'
+UNION ALL
+SELECT
+    'Cost of Sales' as Category,
+    SUM(CurrentBalance) as Amount
+FROM GenMaster WHERE GlGroup LIKE '02%'
+UNION ALL
+SELECT
+    'Gross Profit' as Category,
+    -SUM(CASE WHEN GlGroup LIKE '01%' THEN CurrentBalance ELSE 0 END)
+    - SUM(CASE WHEN GlGroup LIKE '02%' THEN CurrentBalance ELSE 0 END) as Amount
+FROM GenMaster WHERE GlGroup LIKE '0[12]%'
+UNION ALL
+SELECT
+    'Other Income' as Category,
+    -SUM(CurrentBalance) as Amount
+FROM GenMaster WHERE GlGroup LIKE '03%'
+UNION ALL
+SELECT
+    'Operating Expenses' as Category,
+    SUM(CurrentBalance) as Amount
+FROM GenMaster WHERE GlGroup LIKE '04%'
+UNION ALL
+SELECT
+    'Taxation' as Category,
+    SUM(CurrentBalance) as Amount
+FROM GenMaster WHERE GlGroup LIKE '07%'
+UNION ALL
+SELECT
+    'Net Profit' as Category,
+    -SUM(CASE WHEN GlGroup LIKE '01%' OR GlGroup LIKE '03%' THEN CurrentBalance ELSE 0 END)
+    - SUM(CASE WHEN GlGroup LIKE '02%' OR GlGroup LIKE '04%' OR GlGroup LIKE '07%' THEN CurrentBalance ELSE 0 END) as Amount
+FROM GenMaster WHERE GlGroup LIKE '0[1-7]%' ''',
+
+            "balance_sheet": '''-- Balance Sheet (Current Period)
+-- Assets (AccountType A) - shown as positive
+-- Liabilities (AccountType L) - shown as positive
+-- Capital/Equity (AccountType C) - shown as positive
+SELECT
+    CASE m.AccountType
+        WHEN 'A' THEN '1-ASSETS'
+        WHEN 'L' THEN '2-LIABILITIES'
+        WHEN 'C' THEN '3-EQUITY'
+    END as Section,
+    m.AccountType,
+    g.Description as GroupDescription,
+    SUM(CASE
+        WHEN m.AccountType = 'A' THEN m.CurrentBalance
+        ELSE -m.CurrentBalance
+    END) as Amount
+FROM GenMaster m
+LEFT JOIN GenGroups g ON m.GlGroup = g.GlGroup AND m.Company = g.Company
+WHERE m.AccountType IN ('A', 'L', 'C')
+GROUP BY m.AccountType, m.GlGroup, g.Description
+HAVING SUM(m.CurrentBalance) <> 0
+ORDER BY 1, m.GlGroup''',
         }
 
         query_type_lower = query_type.lower().strip()
@@ -2348,6 +2452,9 @@ ORDER BY t.EntryDate DESC, t.StockCode, t.Serial''',
                 "ar_customer_receipts": "Customer payments/receipts received",
                 "serial_inventory": "Serialized items currently on hand",
                 "serial_transactions": "Serial number transaction history",
+                "income_statement": "Income statement by GL group (current period)",
+                "income_statement_summary": "Income statement summary totals",
+                "balance_sheet": "Balance sheet by account type (current period)",
             }
             for name, desc in descriptions.items():
                 lines.append(f"  {name}: {desc}")
@@ -2723,6 +2830,60 @@ Use `get_syspro_help('<topic>')` with one of:
         }
 
         topic_lower = topic.lower().strip()
+
+        # Topic aliases for common variations
+        topic_aliases = {
+            "general ledger": "gl",
+            "generalledger": "gl",
+            "general_ledger": "gl",
+            "ledger": "gl",
+            "customers": "customer",
+            "suppliers": "supplier",
+            "vendors": "supplier",
+            "vendor": "supplier",
+            "stock": "inventory",
+            "items": "inventory",
+            "parts": "inventory",
+            "sales orders": "sales_order",
+            "salesorders": "sales_order",
+            "sales": "sales_order",
+            "orders": "sales_order",
+            "purchase orders": "purchase_order",
+            "purchaseorders": "purchase_order",
+            "pos": "purchase_order",
+            "po": "purchase_order",
+            "purchasing": "purchase_order",
+            "jobs": "job",
+            "manufacturing": "job",
+            "wip": "job",
+            "work in progress": "job",
+            "workinprogress": "job",
+            "bill of materials": "bom",
+            "billofmaterials": "bom",
+            "bills": "bom",
+            "prices": "pricing",
+            "price": "pricing",
+            "accounts payable": "ap",
+            "accountspayable": "ap",
+            "payables": "ap",
+            "accounts receivable": "customer",
+            "accountsreceivable": "customer",
+            "ar": "customer",
+            "receivables": "customer",
+            "bank": "cashbook",
+            "banking": "cashbook",
+            "cash": "cashbook",
+            "transactions": "movements",
+            "movement": "movements",
+            "serials": "serial",
+            "serial numbers": "serial",
+            "serialnumbers": "serial",
+            "lot": "serial",
+            "lots": "serial",
+        }
+
+        # Apply alias if exists
+        topic_lower = topic_aliases.get(topic_lower, topic_lower)
 
         if topic_lower not in help_topics:
             return f"Unknown topic: '{topic}'\n\nUse get_syspro_help('list') to see available topics."
