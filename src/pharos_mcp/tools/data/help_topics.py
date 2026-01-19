@@ -322,6 +322,45 @@ HELP_TOPICS = {
 - Track serial history: Query InvSerialTrn for full transaction trail
 - Serial by customer: Check Customer column in InvSerialHead""",
 
+    "analytics": """## Business Analytics in SYSPRO
+
+**Available Analytics Tools:**
+- `get_kpi_dashboard` - Key metrics at a glance (DSO, DIO, DPO, CCC)
+- `analyze_customer_health` - Churn risk, late payers, concentration
+- `analyze_inventory_health` - Turnover, aging, problem areas
+- `analyze_product_profitability` - Margins by product class
+- `get_data_quality_report` - Data issues affecting reporting
+
+**Key Performance Indicators:**
+- DSO (Days Sales Outstanding): AR / Daily Sales
+- DIO (Days Inventory Outstanding): Inventory / Daily COGS
+- DPO (Days Payable Outstanding): AP / Daily Purchases
+- CCC (Cash Conversion Cycle): DSO + DIO - DPO
+
+**Common Analysis Patterns:**
+
+Customer Churn Risk:
+```sql
+SELECT Customer, DATEDIFF(day, DateLastSale, GETDATE()) as DaysSinceOrder
+FROM ArCustomer WHERE DateLastSale < DATEADD(day, -90, GETDATE())
+```
+
+Product Profitability (using inventory costs):
+```sql
+SELECT i.ProductClass,
+       SUM(d.MOrderQty * d.MPrice) as Revenue,
+       SUM(d.MOrderQty * w.UnitCost) as Cost
+FROM SorDetail d
+JOIN InvMaster i ON d.MStockCode = i.StockCode
+LEFT JOIN InvWarehouse w ON d.MStockCode = w.StockCode
+GROUP BY i.ProductClass
+```
+
+**Data Quality Notes:**
+- SO line costs (MUnitCost) often not populated - use InvWarehouse.UnitCost
+- Old POs may remain open - filter by date for accurate analysis
+- Job variances can be extreme - indicates estimation issues""",
+
     "financials": """## Financial Reporting in SYSPRO
 
 **IMPORTANT: GL Group structures vary by implementation!**
@@ -386,6 +425,7 @@ Use `get_syspro_help('<topic>')` with one of:
 - `pricing` - Price lists and customer pricing
 - `gl` - General Ledger accounts and journals
 - `financials` - Income statement and financial reporting
+- `analytics` - KPIs, dashboards, and business analysis
 
 **Tips:**
 - Use `search_tables` to find tables by business concept
@@ -451,4 +491,11 @@ TOPIC_ALIASES = {
     "profitandloss": "financials",
     "pnl": "financials",
     "p&l": "financials",
+    "kpi": "analytics",
+    "kpis": "analytics",
+    "dashboard": "analytics",
+    "metrics": "analytics",
+    "analysis": "analytics",
+    "bi": "analytics",
+    "business intelligence": "analytics",
 }

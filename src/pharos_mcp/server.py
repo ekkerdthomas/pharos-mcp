@@ -10,7 +10,12 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from .resources import register_schema_resources
-from .tools import register_financial_tools, register_query_tools, register_schema_tools
+from .tools import (
+    register_analytics_tools,
+    register_financial_tools,
+    register_query_tools,
+    register_schema_tools,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +43,9 @@ def create_server() -> FastMCP:
 
     logger.info("Registering financial tools...")
     register_financial_tools(mcp)
+
+    logger.info("Registering analytics tools...")
+    register_analytics_tools(mcp)
 
     # Register resources
     logger.info("Registering resources...")

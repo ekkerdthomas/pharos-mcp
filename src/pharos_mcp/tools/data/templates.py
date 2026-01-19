@@ -777,6 +777,127 @@ WHERE m.AccountType IN ('A', 'L', 'C')
 GROUP BY m.AccountType, m.GlGroup, g.Description
 HAVING SUM(m.CurrentBalance) <> 0
 ORDER BY 1, m.GlGroup''',
+
+    "customer_churn_risk": '''-- Customer Churn Risk Analysis
+-- Customers who haven't ordered in 90+ days with historical revenue
+SELECT
+    c.Customer,
+    c.Name,
+    c.CustomerClass,
+    c.Salesperson,
+    c.DateLastSale,
+    DATEDIFF(day, c.DateLastSale, GETDATE()) as DaysSinceLastOrder,
+    (SELECT SUM(d.MOrderQty * d.MPrice)
+     FROM SorMaster m
+     JOIN SorDetail d ON m.SalesOrder = d.SalesOrder
+     WHERE m.Customer = c.Customer
+     AND m.OrderDate >= DATEADD(year, -2, c.DateLastSale)) as HistoricalRevenue
+FROM ArCustomer c
+WHERE c.DateLastSale < DATEADD(day, -90, GETDATE())
+  AND c.DateLastSale IS NOT NULL
+  AND c.CustomerOnHold <> 'Y'
+ORDER BY DaysSinceLastOrder DESC''',
+
+    "customer_yoy_comparison": '''-- Customer Year-over-Year Revenue Comparison
+SELECT TOP 20
+    m.Customer,
+    c.Name,
+    SUM(CASE WHEN YEAR(m.OrderDate) = YEAR(GETDATE()) - 1
+             THEN d.MOrderQty * d.MPrice ELSE 0 END) as LastYearRevenue,
+    SUM(CASE WHEN YEAR(m.OrderDate) = YEAR(GETDATE())
+             THEN d.MOrderQty * d.MPrice ELSE 0 END) as ThisYearRevenue,
+    SUM(CASE WHEN YEAR(m.OrderDate) = YEAR(GETDATE())
+             THEN d.MOrderQty * d.MPrice ELSE 0 END) -
+    SUM(CASE WHEN YEAR(m.OrderDate) = YEAR(GETDATE()) - 1
+             THEN d.MOrderQty * d.MPrice ELSE 0 END) as Change
+FROM SorMaster m
+JOIN SorDetail d ON m.SalesOrder = d.SalesOrder
+JOIN ArCustomer c ON m.Customer = c.Customer
+WHERE YEAR(m.OrderDate) >= YEAR(GETDATE()) - 1
+GROUP BY m.Customer, c.Name
+HAVING SUM(d.MOrderQty * d.MPrice) > 10000
+ORDER BY ThisYearRevenue DESC''',
+
+    "product_profitability": '''-- Product Profitability by Class (using inventory costs)
+-- Note: Uses InvWarehouse.UnitCost since SO line costs often not populated
+SELECT
+    i.ProductClass,
+    COUNT(DISTINCT d.SalesOrder) as OrderCount,
+    SUM(d.MOrderQty) as QtySold,
+    SUM(d.MOrderQty * d.MPrice) as Revenue,
+    SUM(d.MOrderQty * COALESCE(w.UnitCost, 0)) as EstimatedCost,
+    SUM(d.MOrderQty * d.MPrice) - SUM(d.MOrderQty * COALESCE(w.UnitCost, 0)) as GrossProfit,
+    CASE WHEN SUM(d.MOrderQty * d.MPrice) > 0
+         THEN (SUM(d.MOrderQty * d.MPrice) - SUM(d.MOrderQty * COALESCE(w.UnitCost, 0))) /
+              SUM(d.MOrderQty * d.MPrice) * 100
+         ELSE 0
+    END as MarginPct
+FROM SorDetail d
+JOIN SorMaster m ON d.SalesOrder = m.SalesOrder
+JOIN InvMaster i ON d.MStockCode = i.StockCode
+LEFT JOIN InvWarehouse w ON d.MStockCode = w.StockCode AND d.MWarehouse = w.Warehouse
+WHERE m.OrderDate >= DATEADD(year, -1, GETDATE())
+GROUP BY i.ProductClass
+HAVING SUM(d.MOrderQty * d.MPrice) > 10000
+ORDER BY Revenue DESC''',
+
+    "cash_conversion_cycle": '''-- Cash Conversion Cycle KPIs
+WITH Metrics AS (
+    SELECT
+        (SELECT SUM(b.ValCurrentInv + b.Val30daysInv + b.Val60daysInv +
+                    b.Val90daysInv + b.Val120daysInv) FROM ArCustomerBal b) as TotalAR,
+        (SELECT SUM(s.CurrentBalance) FROM ApSupplier s WHERE s.CurrentBalance > 0) as TotalAP,
+        (SELECT SUM(w.QtyOnHand * w.UnitCost) FROM InvWarehouse w WHERE w.QtyOnHand > 0) as TotalInventory,
+        (SELECT SUM(d.MOrderQty * d.MPrice)
+         FROM SorMaster m JOIN SorDetail d ON m.SalesOrder = d.SalesOrder
+         WHERE m.OrderDate >= DATEADD(year, -1, GETDATE())) as AnnualSales,
+        (SELECT SUM(d.MOrderQty * d.MPrice)
+         FROM PorMasterHdr p JOIN PorMasterDetail d ON p.PurchaseOrder = d.PurchaseOrder
+         WHERE p.OrderEntryDate >= DATEADD(year, -1, GETDATE())) as AnnualPurchases,
+        (SELECT SUM(ABS(TrnValue)) FROM InvMovements
+         WHERE TrnType IN ('I', 'S') AND EntryDate >= DATEADD(year, -1, GETDATE())) as AnnualCOGS
+)
+SELECT
+    TotalAR,
+    TotalAP,
+    TotalInventory,
+    AnnualSales,
+    CASE WHEN AnnualSales > 0 THEN (TotalAR / (AnnualSales / 365)) ELSE 0 END as DSO_Days,
+    CASE WHEN AnnualCOGS > 0 THEN (TotalInventory / (AnnualCOGS / 365)) ELSE 0 END as DIO_Days,
+    CASE WHEN AnnualPurchases > 0 THEN (TotalAP / (AnnualPurchases / 365)) ELSE 0 END as DPO_Days
+FROM Metrics''',
+
+    "job_cost_variance": '''-- Job Cost Variance Analysis (Actual vs Estimated)
+WITH JobCosts AS (
+    SELECT
+        j.Job,
+        j.StockCode,
+        LEFT(j.StockDescription, 30) as Description,
+        j.QtyToMake,
+        j.QtyManufactured,
+        j.ExpMaterial + j.ExpLabour as EstimatedCost,
+        (j.MatCostToDate1 + j.MatCostToDate2 + j.MatCostToDate3 +
+         j.LabCostToDate1 + j.LabCostToDate2 + j.LabCostToDate3) as ActualCost
+    FROM WipMaster j
+    WHERE j.Complete = 'Y'
+      AND j.JobStartDate >= DATEADD(year, -1, GETDATE())
+      AND (j.ExpMaterial + j.ExpLabour) > 0
+)
+SELECT TOP 20
+    Job,
+    StockCode,
+    Description,
+    QtyManufactured,
+    EstimatedCost,
+    ActualCost,
+    EstimatedCost - ActualCost as Variance,
+    CASE WHEN EstimatedCost > 0
+         THEN ((EstimatedCost - ActualCost) / EstimatedCost) * 100
+         ELSE 0
+    END as VariancePct
+FROM JobCosts
+WHERE ABS(EstimatedCost - ActualCost) > EstimatedCost * 0.1
+ORDER BY ABS(EstimatedCost - ActualCost) DESC''',
 }
 
 # Descriptions for the 'list' command
@@ -824,4 +945,9 @@ TEMPLATE_DESCRIPTIONS = {
     "income_statement": "Income statement by GL group (current period) - see generate_income_statement for auto-detection",
     "income_statement_summary": "Income statement summary totals - see generate_income_statement for auto-detection",
     "balance_sheet": "Balance sheet by account type (current period)",
+    "customer_churn_risk": "Customers at risk of churning (90+ days inactive)",
+    "customer_yoy_comparison": "Customer revenue year-over-year comparison",
+    "product_profitability": "Product margin by class (uses inventory costs)",
+    "cash_conversion_cycle": "DSO, DIO, DPO cash flow metrics",
+    "job_cost_variance": "Job actual vs estimated cost analysis",
 }
