@@ -322,6 +322,47 @@ HELP_TOPICS = {
 - Track serial history: Query InvSerialTrn for full transaction trail
 - Serial by customer: Check Customer column in InvSerialHead""",
 
+    "financials": """## Financial Reporting in SYSPRO
+
+**IMPORTANT: GL Group structures vary by implementation!**
+
+Different SYSPRO implementations use different GL group numbering schemes.
+Some use 01xx/02xx/03xx patterns, others use 1000/2000/3000, etc.
+
+**Recommended Tools:**
+- `discover_gl_structure` - See YOUR actual GL group patterns
+- `generate_income_statement` - Auto-detects your GL structure
+- `compare_periods` - Year-over-year comparison
+
+**Main Tables:**
+- `GenMaster` - GL account master (current balances)
+- `GenHistory` - Historical period balances by year
+- `GenGroups` - GL group descriptions
+- `GenJournalDetail` - Posted journal entries
+
+**Key Columns (GenMaster):**
+- `GlCode` - Account code (primary key)
+- `AccountType` - A=Asset, L=Liability, C=Capital, R=Revenue, E=Expense
+- `GlGroup` - Account grouping
+- `CurrentBalance` - Current period balance
+- `PtdDrValue`, `PtdCrValue` - Period debits/credits
+
+**Key Columns (GenHistory):**
+- `GlYear` - Fiscal year
+- `BeginYearBalance` - Opening balance
+- `ClosingBalPer1` through `ClosingBalPer12` - Period closing balances
+
+**Income Statement Logic:**
+- Revenue accounts (AccountType=R) have CREDIT balances (negative)
+- Expense accounts (AccountType=E) have DEBIT balances (positive)
+- To display properly: negate revenue, keep expenses as-is
+
+**Tips:**
+- Use `generate_income_statement(year=2024)` for any year
+- Use `generate_income_statement(include_quarters=True)` for quarterly view
+- Use `generate_income_statement(detailed=True)` to see GL group breakdown
+- Static templates may need adjustment - use dynamic tools instead""",
+
     "list": """## Available Help Topics
 
 Use `get_syspro_help('<topic>')` with one of:
@@ -344,6 +385,7 @@ Use `get_syspro_help('<topic>')` with one of:
 - `bom` - Bill of Materials structure
 - `pricing` - Price lists and customer pricing
 - `gl` - General Ledger accounts and journals
+- `financials` - Income statement and financial reporting
 
 **Tips:**
 - Use `search_tables` to find tables by business concept
@@ -401,4 +443,12 @@ TOPIC_ALIASES = {
     "serialnumbers": "serial",
     "lot": "serial",
     "lots": "serial",
+    "financial": "financials",
+    "income statement": "financials",
+    "incomestatement": "financials",
+    "income_statement": "financials",
+    "profit and loss": "financials",
+    "profitandloss": "financials",
+    "pnl": "financials",
+    "p&l": "financials",
 }

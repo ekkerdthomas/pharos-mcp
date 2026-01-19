@@ -684,6 +684,11 @@ FROM InvSerialTrn t
 ORDER BY t.EntryDate DESC, t.StockCode, t.Serial''',
 
     "income_statement": '''-- Income Statement (Current Period)
+-- NOTE: GL Group patterns vary by implementation!
+-- This template assumes 01xx/02xx/03xx/04xx/07xx structure.
+-- Use discover_gl_structure() to see YOUR actual GL groups.
+-- Use generate_income_statement() for auto-detection.
+--
 -- Revenue (GlGroup 01xx) - shown as positive
 -- Cost of Sales (GlGroup 02xx) - shown as expense
 -- Other Income (GlGroup 03xx) - shown as positive
@@ -710,6 +715,9 @@ HAVING SUM(g.CurrentBalance) <> 0
 ORDER BY 1, 2''',
 
     "income_statement_summary": '''-- Income Statement Summary Totals
+-- NOTE: GL Group patterns vary by implementation!
+-- This template assumes 01xx/02xx/03xx/04xx/07xx structure.
+-- Use generate_income_statement() for auto-detection.
 SELECT
     'Revenue' as Category,
     -SUM(CurrentBalance) as Amount
@@ -813,7 +821,7 @@ TEMPLATE_DESCRIPTIONS = {
     "ar_customer_receipts": "Customer payments/receipts received",
     "serial_inventory": "Serialized items currently on hand",
     "serial_transactions": "Serial number transaction history",
-    "income_statement": "Income statement by GL group (current period)",
-    "income_statement_summary": "Income statement summary totals",
+    "income_statement": "Income statement by GL group (current period) - see generate_income_statement for auto-detection",
+    "income_statement_summary": "Income statement summary totals - see generate_income_statement for auto-detection",
     "balance_sheet": "Balance sheet by account type (current period)",
 }
