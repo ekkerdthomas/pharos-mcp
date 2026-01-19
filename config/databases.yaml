@@ -1,0 +1,30 @@
+# Database Configuration for Pharos MCP
+# Credentials are loaded from environment variables using env_prefix
+
+databases:
+  syspro_company:
+    type: mssql
+    env_prefix: SYSPRO_DB
+    description: "SYSPRO Company Database"
+    readonly: true
+    settings:
+      timeout: 30
+      max_rows: 1000
+
+  syspro_admin:
+    type: mssql
+    env_prefix: SYSPRO_ADMIN_DB
+    description: "SYSPRO Admin Database (Data Dictionary)"
+    readonly: true
+    settings:
+      timeout: 30
+      max_rows: 1000
+
+# Default database to use when not specified
+default_database: syspro_company
+
+# Global settings
+global_settings:
+  query_timeout: 30
+  max_rows: 1000
+  connection_pool_size: 5

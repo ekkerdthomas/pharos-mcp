@@ -1,0 +1,58 @@
+# Tool Configuration for Pharos MCP
+# Defines available tools, their permissions, and settings
+
+tools:
+  # Schema exploration tools
+  schema:
+    enabled: true
+    tools:
+      - search_tables
+      - get_table_schema
+      - get_table_columns
+      - find_related_tables
+      - search_columns
+      - list_modules
+    settings:
+      max_results: 100
+
+  # Query execution tools
+  query:
+    enabled: true
+    tools:
+      - execute_query
+      - preview_table
+      - count_records
+    settings:
+      max_rows: 1000
+      timeout: 30
+      allowed_operations:
+        - SELECT
+
+  # Business tools (Phase 2 - disabled for now)
+  inventory:
+    enabled: false
+    tools:
+      - check_stock_level
+      - find_low_stock_items
+      - get_item_details
+      - search_products
+
+  sales:
+    enabled: false
+    tools:
+      - get_open_orders
+      - get_order_details
+      - search_orders
+      - get_customer_info
+
+  reports:
+    enabled: false
+    tools:
+      - sales_summary
+      - inventory_valuation
+      - customer_aging
+
+# Global tool settings
+global:
+  audit_all: true
+  require_confirmation_for_writes: true

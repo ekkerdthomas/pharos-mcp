@@ -1,0 +1,58 @@
+# Prompt Templates for Pharos MCP
+# Business-friendly prompt templates for common operations
+
+templates:
+  # Schema exploration prompts
+  find_customer_tables:
+    description: "Find tables related to customer data"
+    query: "search_tables"
+    params:
+      search_term: "customer"
+
+  find_inventory_tables:
+    description: "Find tables related to inventory"
+    query: "search_tables"
+    params:
+      search_term: "inv"
+
+  find_sales_tables:
+    description: "Find tables related to sales orders"
+    query: "search_tables"
+    params:
+      search_term: "sor"
+
+  # Common data queries
+  customer_list:
+    description: "List all customers"
+    query: "execute_query"
+    params:
+      sql: "SELECT TOP 100 Customer, Name, Telephone, Email FROM ArCustomer ORDER BY Name"
+
+  open_orders:
+    description: "List open sales orders"
+    query: "execute_query"
+    params:
+      sql: "SELECT TOP 100 SalesOrder, Customer, OrderDate, OrderStatus FROM SorMaster WHERE OrderStatus = '1' ORDER BY OrderDate DESC"
+
+  stock_levels:
+    description: "Check stock levels"
+    query: "execute_query"
+    params:
+      sql: "SELECT TOP 100 StockCode, Description, QtyOnHand, Warehouse FROM InvWarehouse ORDER BY StockCode"
+
+# Help text for business users
+help:
+  getting_started: |
+    Welcome to Pharos MCP. You can:
+    - Search for tables by name or description
+    - View table schemas and column details
+    - Execute read-only SQL queries
+    - Preview table data
+
+  common_tables: |
+    Common SYSPRO tables:
+    - ArCustomer: Customer master data
+    - InvMaster: Inventory master data
+    - SorMaster: Sales order headers
+    - SorDetail: Sales order lines
+    - PorMasterHdr: Purchase order headers

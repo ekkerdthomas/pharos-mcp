@@ -1,0 +1,14 @@
+# SYSPRO MCP Server Dependencies
+
+# MCP SDK
+mcp[cli]>=1.0.0
+
+# Database connectivity
+pymssql>=2.3.0
+
+# Configuration
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# HTTP server (for SSE transport)
+uvicorn>=0.30.0
