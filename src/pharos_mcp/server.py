@@ -6,10 +6,11 @@ tools and resources for SYSPRO database integration.
 """
 
 import logging
+
 from mcp.server.fastmcp import FastMCP
 
-from .tools import register_schema_tools, register_query_tools
 from .resources import register_schema_resources
+from .tools import register_query_tools, register_schema_tools
 
 # Configure logging
 logging.basicConfig(

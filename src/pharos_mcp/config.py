@@ -58,7 +58,7 @@ class Config:
         if not filepath.exists():
             return {}
 
-        with open(filepath) as f:
+        with filepath.open() as f:
             return yaml.safe_load(f) or {}
 
     @property

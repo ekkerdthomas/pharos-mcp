@@ -47,3 +47,26 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Type checking
+.mypy_cache/
+
+# Pre-commit
+.pre-commit-config.yaml.bak
+
+# Security scanning
+# Note: .secrets.baseline should be tracked (it's the baseline for detect-secrets)
+
+# Build artifacts
+*.egg-info/
+
+# Ruff cache
+.ruff_cache/

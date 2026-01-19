@@ -5,10 +5,10 @@ MCP Tools for SYSPRO integration.
 - query: SQL query execution tools (execute_query, preview_table, etc.)
 """
 
-from .schema import register_schema_tools
 from .query import register_query_tools
+from .schema import register_schema_tools
 
 __all__ = [
-    "register_schema_tools",
     "register_query_tools",
+    "register_schema_tools",
 ]

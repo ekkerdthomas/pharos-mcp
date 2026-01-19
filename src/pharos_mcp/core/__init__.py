@@ -6,14 +6,14 @@ Core infrastructure modules for Pharos MCP.
 - audit: Operation logging
 """
 
+from .audit import AuditLogger, get_audit_logger
 from .database import DatabaseRegistry, get_database_registry
 from .security import QueryValidator
-from .audit import AuditLogger, get_audit_logger
 
 __all__ = [
-    "DatabaseRegistry",
-    "get_database_registry",
-    "QueryValidator",
     "AuditLogger",
+    "DatabaseRegistry",
+    "QueryValidator",
     "get_audit_logger",
+    "get_database_registry",
 ]

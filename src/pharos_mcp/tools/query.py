@@ -8,8 +8,8 @@ from mcp.server.fastmcp import FastMCP
 
 from ..core.audit import audit_tool_call
 from ..core.database import get_company_db
-from ..core.security import QueryValidator, QueryValidationError, sanitize_identifier
-from .base import format_table_results, format_count
+from ..core.security import QueryValidationError, QueryValidator, sanitize_identifier
+from .base import format_count, format_table_results
 
 
 def register_query_tools(mcp: FastMCP) -> None:

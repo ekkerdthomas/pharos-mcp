@@ -6,7 +6,7 @@ Logs all tool invocations for compliance and debugging.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +53,7 @@ class AuditLogger:
             duration_ms: Operation duration in milliseconds.
         """
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "tool": tool,
             "params": self._sanitize_params(params),
             "success": success,
@@ -99,7 +99,7 @@ class AuditLogger:
             entry: Log entry dictionary.
         """
         try:
-            with open(self.log_file, "a") as f:
+            with self.log_file.open("a") as f:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
             logger.error(f"Failed to write audit log: {e}")
@@ -118,7 +118,7 @@ class AuditLogger:
 
         entries = []
         try:
-            with open(self.log_file) as f:
+            with self.log_file.open() as f:
                 for line in f:
                     line = line.strip()
                     if line:

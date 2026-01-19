@@ -1,0 +1,1 @@
+"""Pharos MCP test suite."""

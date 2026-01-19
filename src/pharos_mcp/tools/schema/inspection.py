@@ -125,7 +125,7 @@ def register_inspection_tools(mcp: FastMCP) -> None:
 
         lines.extend([
             "",
-            f"Statistics:",
+            "Statistics:",
             f"  Total rows: {total:,}",
             f"  Null values: {null_count:,} ({100*null_count/total:.1f}%)" if total > 0 else f"  Null values: {null_count}",
         ])
@@ -425,10 +425,10 @@ def register_inspection_tools(mcp: FastMCP) -> None:
             lines.extend([
                 "",
                 "Suggested JOIN:",
-                f"  SELECT *",
+                "  SELECT *",
                 f"  FROM {table1}",
                 f"  INNER JOIN {table2}",
-                f"    ON " + "\n    AND ".join(join_conditions),
+                "    ON " + "\n    AND ".join(join_conditions),
             ])
 
         elif fk_2_to_1:
@@ -440,10 +440,10 @@ def register_inspection_tools(mcp: FastMCP) -> None:
             lines.extend([
                 "",
                 "Suggested JOIN:",
-                f"  SELECT *",
+                "  SELECT *",
                 f"  FROM {table1}",
                 f"  INNER JOIN {table2}",
-                f"    ON " + "\n    AND ".join(join_conditions),
+                "    ON " + "\n    AND ".join(join_conditions),
             ])
 
         else:
@@ -472,7 +472,7 @@ def register_inspection_tools(mcp: FastMCP) -> None:
                     lines.extend([
                         "",
                         "Possible JOIN (verify relationship):",
-                        f"  SELECT *",
+                        "  SELECT *",
                         f"  FROM {table1}",
                         f"  INNER JOIN {table2}",
                         f"    ON {table1}.{col} = {table2}.{col}",

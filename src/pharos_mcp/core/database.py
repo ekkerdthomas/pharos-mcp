@@ -5,8 +5,9 @@ Provides connection pooling and query execution for multiple databases.
 """
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 import pymssql
 

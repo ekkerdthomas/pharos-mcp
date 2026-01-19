@@ -1,0 +1,79 @@
+# Pre-commit hooks for Pharos MCP
+# See https://pre-commit.com for more information
+# Install: pip install pre-commit && pre-commit install
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # ==========================================================================
+  # General file checks
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags in YAML
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ==========================================================================
+  # Ruff - Linting and Formatting
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      # Run the linter with auto-fix
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Run the formatter
+      - id: ruff-format
+
+  # ==========================================================================
+  # Type Checking
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-PyYAML>=6.0.12
+        args: [--config-file=pyproject.toml]
+        pass_filenames: false
+        files: ^src/
+
+  # ==========================================================================
+  # Security - Secrets Detection
+  # ==========================================================================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            \.env\.example$|
+            tests/fixtures/.*
+          )$
+
+  # ==========================================================================
+  # YAML Validation for GitHub Actions
+  # ==========================================================================
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.28.2
+    hooks:
+      - id: check-github-workflows
+        files: ^\.github/workflows/
+
+ci:
+  autofix_commit_msg: 'style: auto-fix from pre-commit hooks'
+  autoupdate_commit_msg: 'chore: update pre-commit hook revisions'

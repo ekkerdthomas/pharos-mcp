@@ -7,7 +7,7 @@ Tools: get_query_template, get_syspro_help
 from mcp.server.fastmcp import FastMCP
 
 from ...core.audit import audit_tool_call
-from ..data import QUERY_TEMPLATES, TEMPLATE_DESCRIPTIONS, HELP_TOPICS, TOPIC_ALIASES
+from ..data import HELP_TOPICS, QUERY_TEMPLATES, TEMPLATE_DESCRIPTIONS, TOPIC_ALIASES
 
 
 def register_reference_tools(mcp: FastMCP) -> None:
