@@ -174,12 +174,25 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
         # Validate limit
         limit = min(max(1, limit), 100)
 
-        # Build column list
-        col_list = ", ".join(c.strip() for c in columns.split(",")) if columns else "*"
+        # Validate columns for dangerous characters/keywords
+        if columns:
+            dangerous = [";", "--", "/*", "drop", "delete", "insert", "update"]
+            cols_lower = columns.lower()
+            for kw in dangerous:
+                if kw in cols_lower:
+                    return f"Invalid column specification: contains disallowed pattern '{kw}'"
+            # Quote each column name for safety
+            col_list = ", ".join(f'"{c.strip()}"' for c in columns.split(","))
+        else:
+            col_list = "*"
 
         # Use safe identifier quoting
         sql = f'SELECT {col_list} FROM "{schema}"."{table_name}" LIMIT %s'
-        results = db.execute_query(sql, (limit,))
+
+        try:
+            results = db.execute_query(sql, (limit,))
+        except Exception as e:
+            return f"Query failed: {e}"
 
         if not results:
             return f"No data found in '{schema}.{table_name}'."
@@ -392,11 +405,23 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
         """
         db = get_database_registry().get_connection("warehouse")
 
+        # Validate WHERE clause for dangerous keywords
+        if where:
+            where_lower = where.lower()
+            dangerous = ["drop", "delete", "insert", "update", "truncate", "alter", "create", ";"]
+            for kw in dangerous:
+                if kw in where_lower:
+                    return f"Invalid WHERE clause: contains disallowed keyword '{kw}'"
+
         sql = f'SELECT COUNT(*) as count FROM "{schema}"."{table_name}"'
         if where:
             sql += f" WHERE {where}"
 
-        result = db.execute_query(sql)
+        try:
+            result = db.execute_query(sql)
+        except Exception as e:
+            return f"Query failed: {e}"
+
         if result:
             count = result[0]["count"]
             table_ref = f"{schema}.{table_name}"

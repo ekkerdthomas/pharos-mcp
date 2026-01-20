@@ -48,10 +48,13 @@ def register_query_tools(mcp: FastMCP) -> None:
         max_rows = min(max_rows, 1000)
 
         # Get database connection
-        if database:
-            db = get_database_registry().get_connection(database)
-        else:
-            db = get_company_db()
+        try:
+            if database:
+                db = get_database_registry().get_connection(database)
+            else:
+                db = get_company_db()
+        except ValueError as e:
+            return f"Database error: {e}"
 
         try:
             results = db.execute_query(sql, max_rows=max_rows)
