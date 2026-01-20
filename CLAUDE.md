@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Pharos MCP - A Model Context Protocol (MCP) server that provides natural language database querying capabilities for SYSPRO ERP and Tempo MRP systems. Enables Claude Desktop users to explore schema and execute read-only SQL queries against SQL Server databases.
+Pharos MCP - A Model Context Protocol (MCP) server that provides natural language database querying capabilities for SYSPRO ERP, Tempo MRP, and PostgreSQL data warehouse systems. Enables Claude Desktop users to explore schema and execute read-only SQL queries against SQL Server and PostgreSQL databases.
 
 Part of the Phygital Tech Ph-ecosystem.
 
@@ -32,12 +32,14 @@ src/pharos_mcp/
 ├── server.py          # FastMCP entry point, registers tools/resources
 ├── config.py          # YAML config loader, env var resolution
 ├── core/
-│   ├── database.py    # DatabaseConnection, DatabaseRegistry (pymssql)
+│   ├── database.py    # DatabaseConnection, DatabaseRegistry
+│   ├── dialect.py     # Database dialect abstraction (MSSQL, PostgreSQL)
 │   ├── security.py    # QueryValidator - read-only SQL enforcement
 │   └── audit.py       # @audit_tool_call decorator, JSON-lines logging
 ├── tools/
 │   ├── schema.py      # Schema exploration: search_tables, get_table_schema
 │   ├── query.py       # Query execution: execute_query, preview_table
+│   ├── warehouse.py   # PostgreSQL warehouse tools: warehouse_list_tables, etc.
 │   └── base.py        # Formatting utilities: format_table_results
 └── resources/
     └── schema_resources.py  # MCP resources for schema info
@@ -46,6 +48,8 @@ src/pharos_mcp/
 ## Key Design Patterns
 
 **Configuration-driven**: Database connections defined in `config/databases.yaml` with credentials loaded from environment variables via `env_prefix` (e.g., `SYSPRO_DB_SERVER`, `SYSPRO_DB_USERNAME`).
+
+**Dialect Abstraction**: `core/dialect.py` provides `DatabaseDialect` base class with `MSSQLDialect` (pymssql) and `PostgreSQLDialect` (psycopg) implementations. This allows the same `DatabaseConnection` class to work with both SQL Server and PostgreSQL.
 
 **Domain Knowledge**: `tools/data/domain_map.py` contains `SYSPRO_DOMAIN_MAP` which maps business terms ("customer", "inventory", "sales order") to SYSPRO table prefixes (Ar, Inv, Sor). `tools/data/tempo_domain_map.py` contains `TEMPO_DOMAIN_MAP` for Tempo MRP tables. This enables intelligent table searches.
 
@@ -116,21 +120,73 @@ Replace `<COMPANY_ID>` placeholder with company (e.g., 'TTM', 'TTML', 'IV').
 Domain mappings are in `tools/data/tempo_domain_map.py` - maps business terms to Tempo tables.
 Module descriptions are in `tools/data/tempo_modules.py`.
 
+## PostgreSQL Data Warehouse
+
+The warehouse is a PostgreSQL database containing SYSPRO data transformed via dbt for analytics.
+
+### Warehouse Schema Organization
+
+- `raw` - Raw SYSPRO data (56 tables: ar_customer, sor_master, inv_master, etc.)
+- `public_stg` - Staging views (35 tables: stg_ar_customer, stg_sor_master, etc.)
+- `public_marts` - Dimensional models (20 tables)
+
+### Warehouse Key Tables
+
+**Dimensions (public_marts):**
+- `dim_customer` - Customer master
+- `dim_product` - Product/inventory master
+- `dim_supplier` - Supplier master
+- `dim_date` - Date dimension
+- `dim_gl_account` - GL account master
+- `dim_job` - Job/work order master
+
+**Facts (public_marts):**
+- `fct_sales` - Sales order line items
+- `fct_invoices` - AR invoices
+- `fct_purchases` - Purchase order items
+- `fct_gl_journal` - GL journal entries
+- `fct_job_cost` - Job costing details
+
+**Reports (public_marts):**
+- `rpt_income_statement` - P&L by period/GL group
+- `rpt_balance_sheet` - Balance sheet by account
+- `rpt_job_variance` - Job cost variances
+
+### Warehouse Tools
+
+Tools in `tools/warehouse.py`:
+- `warehouse_list_schemas()` - List schemas with table counts
+- `warehouse_list_tables(schema)` - List tables in a schema
+- `warehouse_get_columns(table, schema)` - Get column definitions
+- `warehouse_preview(table, schema, limit)` - Preview table data
+- `warehouse_search(term, schema)` - Search tables/columns
+- `warehouse_table_info(table, schema)` - Detailed table info
+- `warehouse_count(table, schema, where)` - Count records
+
+Use `execute_query(sql, database="warehouse")` for custom queries.
+
 ## Environment Variables
 
 Required in `.env`:
 ```
-# SYSPRO Company Database
+# SYSPRO Company Database (SQL Server)
 SYSPRO_DB_SERVER=<sql-server-host>
 SYSPRO_DB_NAME=<database-name>
 SYSPRO_DB_USERNAME=<username>
 SYSPRO_DB_PASSWORD=<password>
 
-# Tempo MRP Database (optional)
+# Tempo MRP Database (SQL Server, optional)
 TEMPO_DB_SERVER=<sql-server-host>
 TEMPO_DB_NAME=Tempo
 TEMPO_DB_USERNAME=<username>
 TEMPO_DB_PASSWORD=<password>
+
+# Data Warehouse (PostgreSQL, optional)
+WAREHOUSE_DB_HOST=<postgresql-host>
+WAREHOUSE_DB_PORT=5432
+WAREHOUSE_DB_NAME=<database-name>
+WAREHOUSE_DB_USERNAME=<username>
+WAREHOUSE_DB_PASSWORD=<password>
 ```
 
 ## Claude Desktop Integration
