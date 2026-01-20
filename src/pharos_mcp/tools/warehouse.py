@@ -10,6 +10,14 @@ from mcp.server.fastmcp import FastMCP
 from ..core.database import get_database_registry
 from .base import format_table_results
 
+# Schemas to exclude from search by default (noisy/internal)
+EXCLUDED_SCHEMAS = (
+    "pg_catalog",
+    "information_schema",
+    "pg_toast",
+    "public_dbt_test__audit",  # dbt test audit tables
+)
+
 
 def register_warehouse_tools(mcp: FastMCP) -> None:
     """Register warehouse-specific tools with the MCP server.
@@ -19,21 +27,25 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
     """
 
     @mcp.tool()
-    def warehouse_list_schemas() -> str:
+    def warehouse_list_schemas(include_empty: bool = False) -> str:
         """List all schemas in the PostgreSQL warehouse.
+
+        Args:
+            include_empty: Include schemas with no tables (default: False).
 
         Returns:
             Formatted list of schemas with table counts.
         """
         db = get_database_registry().get_connection("warehouse")
-        sql = """
+        excluded = ", ".join(f"'{s}'" for s in EXCLUDED_SCHEMAS)
+        sql = f"""
             SELECT
                 schema_name,
                 (SELECT COUNT(*)
                  FROM information_schema.tables t
                  WHERE t.table_schema = s.schema_name) as table_count
             FROM information_schema.schemata s
-            WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+            WHERE schema_name NOT IN ({excluded})
             ORDER BY schema_name
         """
         results = db.execute_query(sql)
@@ -42,7 +54,10 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
 
         lines = ["## Warehouse Schemas", ""]
         for row in results:
-            lines.append(f"- **{row['schema_name']}**: {row['table_count']} tables")
+            table_count = row["table_count"]
+            if not include_empty and table_count == 0:
+                continue
+            lines.append(f"- **{row['schema_name']}**: {table_count} tables")
 
         return "\n".join(lines)
 
@@ -178,19 +193,20 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
 
         Args:
             search_term: Term to search for in table and column names.
-            schema: Optional schema to limit search (default: all schemas).
+            schema: Optional schema to limit search (default: all user schemas).
 
         Returns:
             Matching tables and columns.
         """
         db = get_database_registry().get_connection("warehouse")
         search_pattern = f"%{search_term.lower()}%"
+        excluded = ", ".join(f"'{s}'" for s in EXCLUDED_SCHEMAS)
 
         # Search tables
-        table_sql = """
+        table_sql = f"""
             SELECT table_schema, table_name, table_type
             FROM information_schema.tables
-            WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+            WHERE table_schema NOT IN ({excluded})
               AND LOWER(table_name) LIKE %s
         """
         params: list = [search_pattern]
@@ -202,10 +218,10 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
         tables = db.execute_query(table_sql, tuple(params))
 
         # Search columns
-        col_sql = """
+        col_sql = f"""
             SELECT table_schema, table_name, column_name, data_type
             FROM information_schema.columns
-            WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+            WHERE table_schema NOT IN ({excluded})
               AND LOWER(column_name) LIKE %s
         """
         params = [search_pattern]
@@ -282,8 +298,10 @@ def register_warehouse_tools(mcp: FastMCP) -> None:
         """
         try:
             count_result = db.execute_query(count_sql, (schema, table_name))
-            if count_result and count_result[0]["row_estimate"]:
-                lines.append(f"**Estimated Rows:** {count_result[0]['row_estimate']:,}")
+            if count_result:
+                row_est = count_result[0]["row_estimate"]
+                if row_est and row_est > 0:
+                    lines.append(f"**Estimated Rows:** {row_est:,}")
         except Exception:
             pass
 
