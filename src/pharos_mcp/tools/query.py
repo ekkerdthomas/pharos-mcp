@@ -7,7 +7,7 @@ Provides safe, validated query execution against SYSPRO databases.
 from mcp.server.fastmcp import FastMCP
 
 from ..core.audit import audit_tool_call
-from ..core.database import get_company_db
+from ..core.database import get_company_db, get_database_registry
 from ..core.security import QueryValidationError, QueryValidator, sanitize_identifier
 from .base import format_count, format_table_results
 
@@ -48,7 +48,10 @@ def register_query_tools(mcp: FastMCP) -> None:
         max_rows = min(max_rows, 1000)
 
         # Get database connection
-        db = get_company_db()
+        if database:
+            db = get_database_registry().get_connection(database)
+        else:
+            db = get_company_db()
 
         try:
             results = db.execute_query(sql, max_rows=max_rows)
