@@ -67,6 +67,7 @@ coverage.xml
 
 # Build artifacts
 *.egg-info/
+*.mcpb
 
 # Ruff cache
 .ruff_cache/

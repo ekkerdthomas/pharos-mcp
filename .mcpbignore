@@ -1,0 +1,49 @@
+# Virtual environment and caches
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Testing
+tests/
+htmlcov/
+.coverage
+coverage.xml
+
+# Logs and temp files
+logs/
+*.log
+*.jsonl
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Development files
+.env
+.env.*
+.pre-commit-config.yaml
+.secrets.baseline
+
+# Documentation (not needed in bundle)
+*.md
+!README.md
+
+# Other
+run_server.py
+start_mcp.sh
+.mcp.json
+.claude/

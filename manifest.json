@@ -1,0 +1,168 @@
+{
+  "manifest_version": "0.4",
+  "name": "pharos-mcp",
+  "display_name": "Pharos MCP - SYSPRO Database",
+  "version": "0.1.0",
+  "description": "Query SYSPRO ERP, Tempo MRP, and PostgreSQL data warehouse using natural language. Explore schemas, run read-only SQL queries, and access business analytics.",
+  "long_description": "Pharos MCP provides Claude Desktop with direct access to your SYSPRO ERP database. Features include:\n\n• Schema exploration - Search tables, view columns, understand relationships\n• Query execution - Run read-only SQL queries with safety guardrails\n• Business analytics - KPIs, customer health, inventory analysis\n• Tempo MRP integration - MRP suggestions, shortage analysis, forecasting\n• PostgreSQL warehouse - Dimensional models and reporting",
+  "author": {
+    "name": "Phygital Tech",
+    "email": "dev@phygital.tech"
+  },
+  "homepage": "https://github.com/phygital-tech/pharos-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phygital-tech/pharos-mcp"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/pharos_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "python", "-m", "pharos_mcp.server"],
+      "env": {
+        "PYTHONPATH": "${__dirname}/src",
+        "SYSPRO_DB_SERVER": "${user_config.syspro_server}",
+        "SYSPRO_DB_NAME": "${user_config.syspro_database}",
+        "SYSPRO_DB_USERNAME": "${user_config.syspro_username}",
+        "SYSPRO_DB_PASSWORD": "${user_config.syspro_password}",
+        "TEMPO_DB_SERVER": "${user_config.tempo_server}",
+        "TEMPO_DB_NAME": "${user_config.tempo_database}",
+        "TEMPO_DB_USERNAME": "${user_config.tempo_username}",
+        "TEMPO_DB_PASSWORD": "${user_config.tempo_password}",
+        "WAREHOUSE_DB_HOST": "${user_config.warehouse_host}",
+        "WAREHOUSE_DB_PORT": "${user_config.warehouse_port}",
+        "WAREHOUSE_DB_NAME": "${user_config.warehouse_database}",
+        "WAREHOUSE_DB_USERNAME": "${user_config.warehouse_username}",
+        "WAREHOUSE_DB_PASSWORD": "${user_config.warehouse_password}"
+      }
+    }
+  },
+  "user_config": {
+    "syspro_server": {
+      "type": "string",
+      "title": "SYSPRO SQL Server",
+      "description": "SQL Server hostname or IP address",
+      "required": true
+    },
+    "syspro_database": {
+      "type": "string",
+      "title": "SYSPRO Database Name",
+      "description": "SYSPRO company database name",
+      "required": true
+    },
+    "syspro_username": {
+      "type": "string",
+      "title": "SYSPRO Username",
+      "description": "SQL Server username",
+      "required": true
+    },
+    "syspro_password": {
+      "type": "string",
+      "title": "SYSPRO Password",
+      "description": "SQL Server password",
+      "sensitive": true,
+      "required": true
+    },
+    "tempo_server": {
+      "type": "string",
+      "title": "Tempo SQL Server",
+      "description": "Tempo MRP SQL Server (optional - leave blank to skip)",
+      "required": false
+    },
+    "tempo_database": {
+      "type": "string",
+      "title": "Tempo Database Name",
+      "description": "Tempo database name (usually 'Tempo')",
+      "default": "Tempo",
+      "required": false
+    },
+    "tempo_username": {
+      "type": "string",
+      "title": "Tempo Username",
+      "description": "Tempo SQL Server username",
+      "required": false
+    },
+    "tempo_password": {
+      "type": "string",
+      "title": "Tempo Password",
+      "description": "Tempo SQL Server password",
+      "sensitive": true,
+      "required": false
+    },
+    "warehouse_host": {
+      "type": "string",
+      "title": "Warehouse PostgreSQL Host",
+      "description": "PostgreSQL hostname (optional - leave blank to skip)",
+      "required": false
+    },
+    "warehouse_port": {
+      "type": "string",
+      "title": "Warehouse Port",
+      "description": "PostgreSQL port",
+      "default": "5432",
+      "required": false
+    },
+    "warehouse_database": {
+      "type": "string",
+      "title": "Warehouse Database",
+      "description": "PostgreSQL database name",
+      "required": false
+    },
+    "warehouse_username": {
+      "type": "string",
+      "title": "Warehouse Username",
+      "description": "PostgreSQL username",
+      "required": false
+    },
+    "warehouse_password": {
+      "type": "string",
+      "title": "Warehouse Password",
+      "description": "PostgreSQL password",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "search_tables",
+      "description": "Search for tables by name or business concept"
+    },
+    {
+      "name": "get_table_schema",
+      "description": "Get complete schema details for a table"
+    },
+    {
+      "name": "execute_query",
+      "description": "Execute read-only SQL queries"
+    },
+    {
+      "name": "preview_table",
+      "description": "Preview data from a table"
+    },
+    {
+      "name": "get_kpi_dashboard",
+      "description": "Get key business performance indicators"
+    },
+    {
+      "name": "analyze_customer_health",
+      "description": "Analyze customer churn risk and payment behavior"
+    },
+    {
+      "name": "analyze_inventory_health",
+      "description": "Analyze inventory turnover and problem areas"
+    },
+    {
+      "name": "generate_income_statement",
+      "description": "Generate income statement from GL data"
+    }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "keywords": ["syspro", "erp", "database", "sql-server", "analytics", "mrp", "tempo"]
+}
