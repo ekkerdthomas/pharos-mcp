@@ -685,3 +685,680 @@ def register_tempo_analytics_tools(mcp: FastMCP) -> None:
             output += "  4. Review and clean up past-due records\n"
 
         return output
+
+    @mcp.tool()
+    @audit_tool_call("analyze_lead_time_reliability")
+    async def analyze_lead_time_reliability(company_id: str) -> str:
+        """Analyze lead time reliability comparing master data vs actual performance.
+
+        Uses historical lead time metrics to identify:
+        - Items where actual lead times differ significantly from master
+        - High-variability suppliers/items
+        - Items needing master data updates
+        - P95 lead times for safety stock calculations
+
+        Args:
+            company_id: Company identifier (e.g., 'TTM', 'TTML', 'IV').
+
+        Returns:
+            Lead time reliability analysis report.
+        """
+        db = get_tempo_db()
+
+        # Items where actual LT is significantly different from master
+        variance_sql = """
+        WITH ItemMetrics AS (
+            SELECT
+                m.stock_code,
+                m.avg_lead_time_days,
+                m.p95_lead_time_days,
+                m.lead_time_variability,
+                m.sample_count,
+                m.trend_direction,
+                m.data_quality_score,
+                ROW_NUMBER() OVER (PARTITION BY m.stock_code ORDER BY m.sample_count DESC) as rn
+            FROM analytics.LeadTimeMetrics m
+            WHERE m.company_id = %s AND m.sample_count >= 3
+        ),
+        ItemMaster AS (
+            SELECT stock_code, lead_time, description_1,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY stock_code) as rn
+            FROM master.Items WHERE company_id = %s
+        )
+        SELECT TOP 20
+            m.stock_code,
+            i.description_1 as Description,
+            i.lead_time as MasterLT,
+            m.avg_lead_time_days as ActualLT,
+            m.p95_lead_time_days as P95_LT,
+            m.avg_lead_time_days - i.lead_time as Variance,
+            m.lead_time_variability as Variability,
+            m.sample_count as Samples,
+            m.trend_direction as Trend,
+            m.data_quality_score as Quality
+        FROM ItemMetrics m
+        JOIN ItemMaster i ON m.stock_code = i.stock_code AND i.rn = 1
+        WHERE m.rn = 1 AND i.lead_time > 0
+        ORDER BY ABS(m.avg_lead_time_days - i.lead_time) DESC
+        """
+
+        # High variability items
+        variability_sql = """
+        WITH ItemMetrics AS (
+            SELECT
+                m.stock_code,
+                m.avg_lead_time_days,
+                m.lead_time_variability,
+                m.sample_count,
+                ROW_NUMBER() OVER (PARTITION BY m.stock_code ORDER BY m.sample_count DESC) as rn
+            FROM analytics.LeadTimeMetrics m
+            WHERE m.company_id = %s AND m.sample_count >= 5
+        ),
+        ItemMaster AS (
+            SELECT stock_code, description_1,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY stock_code) as rn
+            FROM master.Items WHERE company_id = %s
+        )
+        SELECT TOP 10
+            m.stock_code,
+            i.description_1 as Description,
+            m.avg_lead_time_days as AvgLT,
+            m.lead_time_variability as Variability,
+            m.sample_count as Samples
+        FROM ItemMetrics m
+        JOIN ItemMaster i ON m.stock_code = i.stock_code AND i.rn = 1
+        WHERE m.rn = 1 AND m.lead_time_variability > 50
+        ORDER BY m.lead_time_variability DESC
+        """
+
+        # Summary statistics
+        summary_sql = """
+        SELECT
+            COUNT(DISTINCT stock_code) as ItemsWithMetrics,
+            AVG(avg_lead_time_days) as OverallAvgLT,
+            AVG(lead_time_variability) as OverallAvgVariability,
+            SUM(CASE WHEN sample_count >= 5 THEN 1 ELSE 0 END) as HighConfidenceItems
+        FROM analytics.LeadTimeMetrics
+        WHERE company_id = %s
+        """
+
+        try:
+            variance_result = db.execute_query(
+                variance_sql, (company_id, company_id), max_rows=20
+            )
+            variability_result = db.execute_query(
+                variability_sql, (company_id, company_id), max_rows=10
+            )
+            summary_result = db.execute_query(summary_sql, (company_id,), max_rows=1)
+        except Exception as e:
+            return f"Failed to analyze lead time reliability for {company_id}: {e}"
+
+        output = f"\nLEAD TIME RELIABILITY ANALYSIS - {company_id}\n"
+        output += "=" * 75 + "\n"
+
+        # Summary
+        output += "\nSUMMARY\n"
+        output += "-" * 75 + "\n"
+        if summary_result:
+            s = summary_result[0]
+            output += f"  Items with lead time metrics: {int(s.get('ItemsWithMetrics', 0) or 0):,}\n"
+            output += f"  High confidence items (5+ samples): {int(s.get('HighConfidenceItems', 0) or 0):,}\n"
+            output += f"  Overall avg lead time: {float(s.get('OverallAvgLT', 0) or 0):.1f} days\n"
+            output += f"  Overall avg variability: {float(s.get('OverallAvgVariability', 0) or 0):.1f}%\n"
+
+        # Variance analysis
+        output += "\nLEAD TIME VARIANCE (Actual vs Master)\n"
+        output += "-" * 75 + "\n"
+        output += f"{'Stock Code':<22} {'Master':>7} {'Actual':>7} {'P95':>7} {'Var':>7} {'Variab%':>8} {'Trend':<8}\n"
+        output += "-" * 75 + "\n"
+
+        longer_count = 0
+        shorter_count = 0
+        for row in variance_result or []:
+            var = float(row.get("Variance", 0) or 0)
+            if var > 5:
+                longer_count += 1
+                marker = " LONGER"
+            elif var < -5:
+                shorter_count += 1
+                marker = " shorter"
+            else:
+                marker = ""
+
+            output += f"{str(row.get('stock_code', ''))[:21]:<22} "
+            output += f"{row.get('MasterLT', 0):>7} "
+            output += f"{float(row.get('ActualLT', 0) or 0):>7.0f} "
+            output += f"{float(row.get('P95_LT', 0) or 0):>7.0f} "
+            output += f"{var:>+7.0f} "
+            output += f"{float(row.get('Variability', 0) or 0):>7.1f}% "
+            output += f"{str(row.get('Trend', ''))[:7]:<8}{marker}\n"
+
+        # High variability items
+        output += "\nHIGH VARIABILITY ITEMS (>50% variability)\n"
+        output += "-" * 75 + "\n"
+        if variability_result:
+            output += f"{'Stock Code':<25} {'Avg LT':>10} {'Variability':>12} {'Samples':>10}\n"
+            output += "-" * 75 + "\n"
+            for row in variability_result:
+                output += f"{str(row.get('stock_code', ''))[:24]:<25} "
+                output += f"{float(row.get('AvgLT', 0) or 0):>10.0f} "
+                output += f"{float(row.get('Variability', 0) or 0):>11.1f}% "
+                output += f"{row.get('Samples', 0):>10}\n"
+        else:
+            output += "  No high-variability items found.\n"
+
+        # Recommendations
+        output += "\nRECOMMENDATIONS\n"
+        output += "-" * 75 + "\n"
+        if longer_count > 0:
+            output += f"  - {longer_count} items have actual LT longer than master - update master data\n"
+            output += "  - Use P95 lead times for safety stock calculations\n"
+        if shorter_count > 0:
+            output += f"  - {shorter_count} items have shorter actual LT - potential to reduce master LT\n"
+        if variability_result:
+            output += "  - High-variability items need safety stock buffers\n"
+            output += "  - Consider alternate suppliers for unreliable items\n"
+
+        return output
+
+    @mcp.tool()
+    @audit_tool_call("get_cross_company_status")
+    async def get_cross_company_status() -> str:
+        """Get MRP health status across all Tempo companies.
+
+        Provides a cross-company view of:
+        - MRP run status and recency
+        - Item and suggestion counts
+        - Stale company alerts
+        - Demand/supply balance by company
+
+        Returns:
+            Cross-company MRP health dashboard.
+        """
+        db = get_tempo_db()
+
+        # Company MRP status
+        status_sql = """
+        SELECT
+            c.company_id,
+            c.company_name,
+            c.is_active,
+            (SELECT MAX(created_date) FROM mrp.Runs WHERE company_id = c.company_id) as LastRun,
+            (SELECT DATEDIFF(day, MAX(created_date), GETDATE()) FROM mrp.Runs WHERE company_id = c.company_id) as DaysSinceRun,
+            (SELECT MAX(items_processed) FROM mrp.Runs WHERE company_id = c.company_id) as ItemsProcessed,
+            (SELECT COUNT(*) FROM mrp.Suggestions s
+             WHERE s.company_id = c.company_id
+               AND s.run_id = (SELECT MAX(run_id) FROM mrp.Runs WHERE company_id = c.company_id)) as OpenSuggestions,
+            (SELECT SUM(CASE WHEN s.critical_flag = 1 THEN 1 ELSE 0 END) FROM mrp.Suggestions s
+             WHERE s.company_id = c.company_id
+               AND s.run_id = (SELECT MAX(run_id) FROM mrp.Runs WHERE company_id = c.company_id)) as CriticalSuggestions
+        FROM auth.Companies c
+        WHERE c.is_active = 1
+        ORDER BY c.company_name
+        """
+
+        # Demand/Supply balance by company
+        balance_sql = """
+        SELECT
+            r.company_id,
+            (SELECT SUM(d.quantity) FROM mrp.Demands d WHERE d.run_id = r.run_id AND d.company_id = r.company_id) as TotalDemand,
+            (SELECT SUM(COALESCE(s.quantity_available, s.quantity)) FROM mrp.Supply s WHERE s.run_id = r.run_id AND s.company_id = r.company_id) as TotalSupply
+        FROM mrp.Runs r
+        WHERE r.run_id = (SELECT MAX(run_id) FROM mrp.Runs r2 WHERE r2.company_id = r.company_id)
+        """
+
+        try:
+            status_result = db.execute_query(status_sql, max_rows=20)
+            balance_result = db.execute_query(balance_sql, max_rows=20)
+        except Exception as e:
+            return f"Failed to get cross-company status: {e}"
+
+        # Create balance lookup
+        balance_lookup = {}
+        for row in balance_result or []:
+            balance_lookup[row.get("company_id")] = {
+                "demand": float(row.get("TotalDemand", 0) or 0),
+                "supply": float(row.get("TotalSupply", 0) or 0),
+            }
+
+        output = "\nCROSS-COMPANY MRP STATUS\n"
+        output += "=" * 80 + "\n"
+
+        # Status table
+        output += "\nMRP RUN STATUS\n"
+        output += "-" * 80 + "\n"
+        output += f"{'Company':<8} {'Name':<22} {'Last Run':<12} {'Days':>5} {'Items':>10} {'Suggest':>8} {'Crit':>6} {'Status':<10}\n"
+        output += "-" * 80 + "\n"
+
+        stale_companies = []
+        active_count = 0
+        for row in status_result or []:
+            company_id = row.get("company_id", "")
+            days = int(row.get("DaysSinceRun", 999) or 999)
+            last_run = str(row.get("LastRun", "Never"))[:10] if row.get("LastRun") else "Never"
+
+            if days <= 7:
+                status = "OK"
+                active_count += 1
+            elif days <= 14:
+                status = "WARNING"
+                stale_companies.append(company_id)
+            else:
+                status = "STALE"
+                stale_companies.append(company_id)
+
+            output += f"{company_id:<8} "
+            output += f"{str(row.get('company_name', ''))[:21]:<22} "
+            output += f"{last_run:<12} "
+            output += f"{days:>5} "
+            output += f"{int(row.get('ItemsProcessed', 0) or 0):>10,} "
+            output += f"{int(row.get('OpenSuggestions', 0) or 0):>8} "
+            output += f"{int(row.get('CriticalSuggestions', 0) or 0):>6} "
+            output += f"{status:<10}\n"
+
+        # Demand/Supply balance
+        output += "\nDEMAND/SUPPLY COVERAGE\n"
+        output += "-" * 80 + "\n"
+        output += f"{'Company':<8} {'Total Demand':>15} {'Total Supply':>15} {'Coverage':>12} {'Status':<10}\n"
+        output += "-" * 80 + "\n"
+
+        for row in status_result or []:
+            company_id = row.get("company_id", "")
+            bal = balance_lookup.get(company_id, {"demand": 0, "supply": 0})
+            demand = bal["demand"]
+            supply = bal["supply"]
+            coverage = (supply / demand * 100) if demand > 0 else 0
+
+            if coverage >= 80:
+                cov_status = "GOOD"
+            elif coverage >= 50:
+                cov_status = "WARNING"
+            else:
+                cov_status = "LOW"
+
+            output += f"{company_id:<8} "
+            output += f"{demand:>15,.0f} "
+            output += f"{supply:>15,.0f} "
+            output += f"{coverage:>11.1f}% "
+            output += f"{cov_status:<10}\n"
+
+        # Summary
+        output += "\nSUMMARY\n"
+        output += "-" * 80 + "\n"
+        output += f"  Active companies (MRP run ≤7 days): {active_count}\n"
+        if stale_companies:
+            output += f"  Stale companies needing attention: {', '.join(stale_companies)}\n"
+            output += "\n  RECOMMENDATION: Run MRP for stale companies\n"
+        else:
+            output += "  All companies have recent MRP runs.\n"
+
+        return output
+
+    @mcp.tool()
+    @audit_tool_call("get_planning_risks")
+    async def get_planning_risks(company_id: str) -> str:
+        """Identify items with planning risks due to lead time discrepancies.
+
+        Finds items where actual lead times are significantly longer than
+        master data, creating stockout risk. Prioritizes by demand volume
+        and ABC classification.
+
+        Args:
+            company_id: Company identifier (e.g., 'TTM', 'TTML', 'IV').
+
+        Returns:
+            Planning risk analysis with prioritized action items.
+        """
+        db = get_tempo_db()
+
+        # High-risk items: actual LT >> master LT with active demand
+        risk_sql = """
+        WITH ItemMetrics AS (
+            SELECT
+                m.stock_code,
+                m.avg_lead_time_days,
+                m.p95_lead_time_days,
+                m.lead_time_variability,
+                m.sample_count,
+                ROW_NUMBER() OVER (PARTITION BY m.stock_code ORDER BY m.sample_count DESC) as rn
+            FROM analytics.LeadTimeMetrics m
+            WHERE m.company_id = %s AND m.sample_count >= 3
+        ),
+        ItemMaster AS (
+            SELECT stock_code, lead_time, description_1,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY stock_code) as rn
+            FROM master.Items WHERE company_id = %s
+        ),
+        ItemDemand AS (
+            SELECT stock_code, SUM(quantity) as TotalDemand
+            FROM mrp.Demands
+            WHERE run_id = (SELECT MAX(run_id) FROM mrp.Runs WHERE company_id = %s)
+              AND company_id = %s
+            GROUP BY stock_code
+        ),
+        ItemClass AS (
+            SELECT stock_code, abc_class,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY classification_id DESC) as rn
+            FROM analytics.ItemClassification WHERE company_id = %s
+        )
+        SELECT TOP 25
+            m.stock_code,
+            i.description_1 as Description,
+            i.lead_time as MasterLT,
+            m.avg_lead_time_days as ActualLT,
+            m.p95_lead_time_days as P95_LT,
+            m.avg_lead_time_days - i.lead_time as LTGap,
+            CASE WHEN i.lead_time > 0
+                 THEN (m.avg_lead_time_days - i.lead_time) * 100.0 / i.lead_time
+                 ELSE 0 END as PctLonger,
+            d.TotalDemand,
+            COALESCE(c.abc_class, '-') as ABCClass,
+            m.lead_time_variability as Variability
+        FROM ItemMetrics m
+        JOIN ItemMaster i ON m.stock_code = i.stock_code AND i.rn = 1
+        LEFT JOIN ItemDemand d ON m.stock_code = d.stock_code
+        LEFT JOIN ItemClass c ON m.stock_code = c.stock_code AND c.rn = 1
+        WHERE m.rn = 1
+          AND i.lead_time > 0
+          AND m.avg_lead_time_days > i.lead_time * 1.5  -- Actual is 50%+ longer
+          AND (d.TotalDemand > 0 OR c.abc_class IN ('A', 'B'))
+        ORDER BY
+            CASE c.abc_class WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END,
+            d.TotalDemand DESC
+        """
+
+        # Risk summary by severity
+        summary_sql = """
+        WITH ItemMetrics AS (
+            SELECT
+                m.stock_code,
+                m.avg_lead_time_days,
+                ROW_NUMBER() OVER (PARTITION BY m.stock_code ORDER BY m.sample_count DESC) as rn
+            FROM analytics.LeadTimeMetrics m
+            WHERE m.company_id = %s AND m.sample_count >= 3
+        ),
+        ItemMaster AS (
+            SELECT stock_code, lead_time,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY stock_code) as rn
+            FROM master.Items WHERE company_id = %s
+        )
+        SELECT
+            CASE
+                WHEN m.avg_lead_time_days > i.lead_time * 3 THEN 'CRITICAL (3x+)'
+                WHEN m.avg_lead_time_days > i.lead_time * 2 THEN 'HIGH (2-3x)'
+                WHEN m.avg_lead_time_days > i.lead_time * 1.5 THEN 'MEDIUM (1.5-2x)'
+                ELSE 'LOW (<1.5x)'
+            END as RiskLevel,
+            COUNT(*) as ItemCount
+        FROM ItemMetrics m
+        JOIN ItemMaster i ON m.stock_code = i.stock_code AND i.rn = 1
+        WHERE m.rn = 1 AND i.lead_time > 0
+        GROUP BY
+            CASE
+                WHEN m.avg_lead_time_days > i.lead_time * 3 THEN 'CRITICAL (3x+)'
+                WHEN m.avg_lead_time_days > i.lead_time * 2 THEN 'HIGH (2-3x)'
+                WHEN m.avg_lead_time_days > i.lead_time * 1.5 THEN 'MEDIUM (1.5-2x)'
+                ELSE 'LOW (<1.5x)'
+            END
+        ORDER BY
+            CASE
+                WHEN m.avg_lead_time_days > i.lead_time * 3 THEN 1
+                WHEN m.avg_lead_time_days > i.lead_time * 2 THEN 2
+                WHEN m.avg_lead_time_days > i.lead_time * 1.5 THEN 3
+                ELSE 4
+            END
+        """
+
+        try:
+            risk_result = db.execute_query(
+                risk_sql,
+                (company_id, company_id, company_id, company_id, company_id),
+                max_rows=25,
+            )
+            summary_result = db.execute_query(
+                summary_sql, (company_id, company_id), max_rows=10
+            )
+        except Exception as e:
+            return f"Failed to get planning risks for {company_id}: {e}"
+
+        output = f"\nPLANNING RISK ANALYSIS - {company_id}\n"
+        output += "=" * 80 + "\n"
+
+        # Risk summary
+        output += "\nRISK SUMMARY (Actual LT vs Master LT)\n"
+        output += "-" * 80 + "\n"
+        critical_count = 0
+        for row in summary_result or []:
+            level = row.get("RiskLevel", "Unknown")
+            count = int(row.get("ItemCount", 0) or 0)
+            marker = " <-- ACTION REQUIRED" if "CRITICAL" in level or "HIGH" in level else ""
+            output += f"  {level:<20} {count:>8,} items{marker}\n"
+            if "CRITICAL" in level or "HIGH" in level:
+                critical_count += count
+
+        # Detailed risk items
+        output += "\nHIGH-RISK ITEMS (Prioritized by ABC class and demand)\n"
+        output += "-" * 80 + "\n"
+        output += f"{'Stock Code':<20} {'ABC':>4} {'Master':>7} {'Actual':>7} {'P95':>7} {'%Longer':>8} {'Demand':>10}\n"
+        output += "-" * 80 + "\n"
+
+        for row in risk_result or []:
+            abc = row.get("ABCClass", "-")
+            pct = float(row.get("PctLonger", 0) or 0)
+            demand = float(row.get("TotalDemand", 0) or 0)
+
+            output += f"{str(row.get('stock_code', ''))[:19]:<20} "
+            output += f"{abc:>4} "
+            output += f"{row.get('MasterLT', 0):>7} "
+            output += f"{float(row.get('ActualLT', 0) or 0):>7.0f} "
+            output += f"{float(row.get('P95_LT', 0) or 0):>7.0f} "
+            output += f"{pct:>7.0f}% "
+            output += f"{demand:>10,.0f}\n"
+
+        if not risk_result:
+            output += "  No high-risk items found.\n"
+
+        # Recommendations
+        output += "\nRECOMMENDATIONS\n"
+        output += "-" * 80 + "\n"
+        if critical_count > 0:
+            output += f"  URGENT: {critical_count} items have lead times 2x+ longer than planned\n"
+            output += "  Actions:\n"
+            output += "    1. Update master lead times to reflect actual performance\n"
+            output += "    2. Increase safety stock for high-variability items\n"
+            output += "    3. Use P95 lead times for planning critical items\n"
+            output += "    4. Consider alternate suppliers for unreliable items\n"
+        else:
+            output += "  Lead times are generally aligned with master data.\n"
+
+        return output
+
+    @mcp.tool()
+    @audit_tool_call("analyze_abc_distribution")
+    async def analyze_abc_distribution(company_id: str) -> str:
+        """Analyze ABC classification distribution and inventory strategy.
+
+        Provides insights on:
+        - ABC class distribution by item count and revenue
+        - A-class items missing safety stock
+        - Service level recommendations
+        - Inventory investment analysis
+
+        Args:
+            company_id: Company identifier (e.g., 'TTM', 'TTML', 'IV').
+
+        Returns:
+            ABC classification analysis with recommendations.
+        """
+        db = get_tempo_db()
+
+        # ABC distribution summary
+        dist_sql = """
+        SELECT
+            abc_class,
+            COUNT(DISTINCT stock_code) as ItemCount,
+            SUM(total_revenue) as TotalRevenue,
+            AVG(revenue_percentage) as AvgRevenuePct,
+            SUM(total_transaction_count) as TotalTransactions
+        FROM analytics.ItemClassification
+        WHERE company_id = %s
+        GROUP BY abc_class
+        ORDER BY abc_class
+        """
+
+        # A-class items detail
+        a_class_sql = """
+        WITH ClassItems AS (
+            SELECT stock_code, abc_class, total_revenue, revenue_percentage,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY classification_id DESC) as rn
+            FROM analytics.ItemClassification
+            WHERE company_id = %s AND abc_class = 'A'
+        ),
+        ItemMaster AS (
+            SELECT stock_code, description_1, safety_stock, lead_time,
+                   ROW_NUMBER() OVER (PARTITION BY stock_code ORDER BY stock_code) as rn
+            FROM master.Items WHERE company_id = %s
+        ),
+        ItemInventory AS (
+            SELECT stock_code, SUM(qty_on_hand) as QtyOnHand, SUM(qty_available) as QtyAvailable
+            FROM mrp.Inventory
+            WHERE run_id = (SELECT MAX(run_id) FROM mrp.Runs WHERE company_id = %s)
+              AND company_id = %s
+            GROUP BY stock_code
+        )
+        SELECT TOP 20
+            c.stock_code,
+            i.description_1 as Description,
+            c.total_revenue as Revenue,
+            c.revenue_percentage as RevenuePct,
+            COALESCE(i.safety_stock, 0) as SafetyStock,
+            i.lead_time as LeadTime,
+            COALESCE(v.QtyOnHand, 0) as QtyOnHand,
+            COALESCE(v.QtyAvailable, 0) as QtyAvailable
+        FROM ClassItems c
+        JOIN ItemMaster i ON c.stock_code = i.stock_code AND i.rn = 1
+        LEFT JOIN ItemInventory v ON c.stock_code = v.stock_code
+        WHERE c.rn = 1
+        ORDER BY c.total_revenue DESC
+        """
+
+        # Items with demand but no ABC classification
+        unclassified_sql = """
+        WITH DemandItems AS (
+            SELECT DISTINCT stock_code
+            FROM mrp.Demands
+            WHERE run_id = (SELECT MAX(run_id) FROM mrp.Runs WHERE company_id = %s)
+              AND company_id = %s
+        ),
+        ClassifiedItems AS (
+            SELECT DISTINCT stock_code
+            FROM analytics.ItemClassification
+            WHERE company_id = %s
+        )
+        SELECT COUNT(*) as UnclassifiedCount
+        FROM DemandItems d
+        WHERE NOT EXISTS (SELECT 1 FROM ClassifiedItems c WHERE c.stock_code = d.stock_code)
+        """
+
+        try:
+            dist_result = db.execute_query(dist_sql, (company_id,), max_rows=10)
+            a_class_result = db.execute_query(
+                a_class_sql, (company_id, company_id, company_id, company_id), max_rows=20
+            )
+            unclass_result = db.execute_query(
+                unclassified_sql, (company_id, company_id, company_id), max_rows=1
+            )
+        except Exception as e:
+            return f"Failed to analyze ABC distribution for {company_id}: {e}"
+
+        output = f"\nABC CLASSIFICATION ANALYSIS - {company_id}\n"
+        output += "=" * 75 + "\n"
+
+        # Distribution summary
+        output += "\nCLASS DISTRIBUTION\n"
+        output += "-" * 75 + "\n"
+        output += f"{'Class':<8} {'Items':>10} {'Revenue':>15} {'Avg Rev%':>12} {'Transactions':>12}\n"
+        output += "-" * 75 + "\n"
+
+        total_items = 0
+        total_revenue = 0
+        a_count = 0
+        for row in dist_result or []:
+            abc = row.get("abc_class", "?")
+            items = int(row.get("ItemCount", 0) or 0)
+            revenue = float(row.get("TotalRevenue", 0) or 0)
+            total_items += items
+            total_revenue += revenue
+            if abc == "A":
+                a_count = items
+
+            output += f"{abc:<8} "
+            output += f"{items:>10,} "
+            output += f"{revenue:>15,.0f} "
+            output += f"{float(row.get('AvgRevenuePct', 0) or 0):>11.2f}% "
+            output += f"{int(row.get('TotalTransactions', 0) or 0):>12,}\n"
+
+        output += "-" * 75 + "\n"
+        output += f"{'TOTAL':<8} {total_items:>10,} {total_revenue:>15,.0f}\n"
+
+        # Pareto check
+        if total_items > 0 and a_count > 0:
+            a_pct = (a_count / total_items * 100)
+            output += f"\nPareto Check: {a_count} A-class items ({a_pct:.1f}%) drive majority of revenue\n"
+
+        # A-class items detail
+        output += "\nA-CLASS ITEMS (Top Revenue Drivers)\n"
+        output += "-" * 75 + "\n"
+        output += f"{'Stock Code':<20} {'Revenue':>12} {'Rev%':>7} {'Safety':>8} {'OnHand':>10} {'Status':<10}\n"
+        output += "-" * 75 + "\n"
+
+        a_without_safety = 0
+        a_low_stock = 0
+        for row in a_class_result or []:
+            safety = int(row.get("SafetyStock", 0) or 0)
+            on_hand = float(row.get("QtyOnHand", 0) or 0)
+            available = float(row.get("QtyAvailable", 0) or 0)
+
+            if safety == 0:
+                status = "NO SAFETY"
+                a_without_safety += 1
+            elif on_hand < safety:
+                status = "LOW STOCK"
+                a_low_stock += 1
+            else:
+                status = "OK"
+
+            output += f"{str(row.get('stock_code', ''))[:19]:<20} "
+            output += f"{float(row.get('Revenue', 0) or 0):>12,.0f} "
+            output += f"{float(row.get('RevenuePct', 0) or 0):>6.2f}% "
+            output += f"{safety:>8} "
+            output += f"{on_hand:>10,.0f} "
+            output += f"{status:<10}\n"
+
+        # Unclassified items
+        unclass_count = 0
+        if unclass_result:
+            unclass_count = int(unclass_result[0].get("UnclassifiedCount", 0) or 0)
+
+        # Summary and recommendations
+        output += "\nSUMMARY & RECOMMENDATIONS\n"
+        output += "-" * 75 + "\n"
+
+        if a_without_safety > 0:
+            output += f"  WARNING: {a_without_safety} A-class items have no safety stock\n"
+            output += "    -> Set safety stock for all A-class items (recommend 2-4 weeks)\n"
+
+        if a_low_stock > 0:
+            output += f"  ALERT: {a_low_stock} A-class items below safety stock level\n"
+            output += "    -> Expedite replenishment for critical items\n"
+
+        if unclass_count > 0:
+            output += f"  INFO: {unclass_count} items with demand have no ABC classification\n"
+            output += "    -> Run classification to include all active items\n"
+
+        output += "\nService Level Recommendations:\n"
+        output += "    A-class: 98-99% service level (critical items)\n"
+        output += "    B-class: 95-97% service level (important items)\n"
+        output += "    C-class: 90-95% service level (standard items)\n"
+
+        return output
