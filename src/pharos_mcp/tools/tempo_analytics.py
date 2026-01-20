@@ -1101,12 +1101,12 @@ def register_tempo_analytics_tools(mcp: FastMCP) -> None:
                 ELSE 'LOW (<1.5x)'
             END
         ORDER BY
-            CASE
+            MIN(CASE
                 WHEN m.avg_lead_time_days > i.lead_time * 3 THEN 1
                 WHEN m.avg_lead_time_days > i.lead_time * 2 THEN 2
                 WHEN m.avg_lead_time_days > i.lead_time * 1.5 THEN 3
                 ELSE 4
-            END
+            END)
         """
 
         try:
