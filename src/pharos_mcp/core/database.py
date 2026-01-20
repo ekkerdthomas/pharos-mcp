@@ -9,9 +9,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
-import pymssql
-
 from ..config import get_config
+from .dialect import DatabaseDialect, get_dialect
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +27,27 @@ class DatabaseConnection:
         """
         self.name = name
         self.config = config
-        self._connection: pymssql.Connection | None = None
+        self._connection: Any | None = None
+        self._dialect: DatabaseDialect = get_dialect(config.get("type", "mssql"))
+
+    @property
+    def db_type(self) -> str:
+        return self.config.get("type", "mssql")
 
     @property
     def server(self) -> str:
+        # For SQL Server
         return self.config.get("server", "")
+
+    @property
+    def host(self) -> str:
+        # For PostgreSQL
+        return self.config.get("host", "")
+
+    @property
+    def port(self) -> int:
+        # For PostgreSQL
+        return self.config.get("port", 5432)
 
     @property
     def database(self) -> str:
@@ -68,47 +83,39 @@ class DatabaseConnection:
             return False
         try:
             # Try a simple query to test connection
-            cursor = self._connection.cursor()
-            cursor.execute("SELECT 1")
+            cursor = self._dialect.get_cursor(self._connection, as_dict=False)
+            cursor.execute(self._dialect.test_connection_sql())
             cursor.fetchone()
             cursor.close()
             return True
         except Exception:
             return False
 
-    def connect(self, force_reconnect: bool = False) -> pymssql.Connection:
+    def connect(self, force_reconnect: bool = False) -> Any:
         """Establish database connection with automatic reconnection.
 
         Args:
             force_reconnect: If True, close existing connection and reconnect.
 
         Returns:
-            Active pymssql connection.
+            Active database connection.
 
         Raises:
-            pymssql.Error: If connection fails.
+            Exception: If connection fails.
         """
         # Check if we need to reconnect
         if force_reconnect and self._connection is not None:
             self.disconnect()
 
         # If we have a connection, verify it's still alive
-        if self._connection is not None:
-            if not self._is_connection_alive():
-                logger.warning(f"Connection to {self.name} is dead, reconnecting...")
-                self.disconnect()
+        if self._connection is not None and not self._is_connection_alive():
+            logger.warning(f"Connection to {self.name} is dead, reconnecting...")
+            self.disconnect()
 
         # Create new connection if needed
         if self._connection is None:
             logger.info(f"Connecting to database: {self.name} ({self.database})")
-            self._connection = pymssql.connect(
-                server=self.server,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                timeout=self.timeout,
-                login_timeout=self.timeout,
-            )
+            self._connection = self._dialect.create_connection(self.config)
         return self._connection
 
     def disconnect(self) -> None:
@@ -122,7 +129,7 @@ class DatabaseConnection:
                 self._connection = None
 
     @contextmanager
-    def cursor(self, as_dict: bool = True) -> Generator[pymssql.Cursor, None, None]:
+    def cursor(self, as_dict: bool = True) -> Generator[Any, None, None]:
         """Get a cursor for query execution.
 
         Args:
@@ -132,7 +139,7 @@ class DatabaseConnection:
             Database cursor.
         """
         conn = self.connect()
-        cursor = conn.cursor(as_dict=as_dict)
+        cursor = self._dialect.get_cursor(conn, as_dict=as_dict)
         try:
             yield cursor
         finally:
@@ -159,6 +166,7 @@ class DatabaseConnection:
         if max_rows is None:
             max_rows = self.max_rows
 
+        connection_errors = self._dialect.get_connection_errors()
         last_error = None
         for attempt in range(max_retries + 1):
             try:
@@ -170,7 +178,7 @@ class DatabaseConnection:
                         if len(results) >= max_rows:
                             break
                     return results
-            except (pymssql.OperationalError, pymssql.InterfaceError) as e:
+            except connection_errors as e:
                 last_error = e
                 if attempt < max_retries:
                     logger.warning(f"Query failed (attempt {attempt + 1}), reconnecting: {e}")
@@ -195,6 +203,7 @@ class DatabaseConnection:
         Returns:
             First column of first row, or None.
         """
+        connection_errors = self._dialect.get_connection_errors()
         last_error = None
         for attempt in range(max_retries + 1):
             try:
@@ -204,7 +213,7 @@ class DatabaseConnection:
                     if row:
                         return row[0]
                     return None
-            except (pymssql.OperationalError, pymssql.InterfaceError) as e:
+            except connection_errors as e:
                 last_error = e
                 if attempt < max_retries:
                     logger.warning(f"Scalar query failed (attempt {attempt + 1}), reconnecting: {e}")

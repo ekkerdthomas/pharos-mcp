@@ -108,14 +108,14 @@ class Config:
 
         # Get credentials from environment
         env_prefix = db_config.get("env_prefix", "")
-        return {
-            "server": os.getenv(f"{env_prefix}_SERVER", ""),
+        db_type = db_config.get("type", "mssql").lower()
+
+        # Base config common to all database types
+        base_config = {
+            "type": db_type,
             "database": os.getenv(f"{env_prefix}_NAME", ""),
             "user": os.getenv(f"{env_prefix}_USERNAME", ""),
             "password": os.getenv(f"{env_prefix}_PASSWORD", ""),
-            "trusted_connection": os.getenv(
-                f"{env_prefix}_TRUSTED_CONNECTION", "false"
-            ).lower() == "true",
             "readonly": db_config.get("readonly", True),
             "description": db_config.get("description", ""),
             "settings": {
@@ -123,6 +123,19 @@ class Config:
                 **db_config.get("settings", {}),
             },
         }
+
+        # PostgreSQL uses host/port instead of server
+        if db_type in ("postgresql", "postgres"):
+            base_config["host"] = os.getenv(f"{env_prefix}_HOST", "")
+            base_config["port"] = int(os.getenv(f"{env_prefix}_PORT", "5432"))
+        else:
+            # SQL Server uses server
+            base_config["server"] = os.getenv(f"{env_prefix}_SERVER", "")
+            base_config["trusted_connection"] = os.getenv(
+                f"{env_prefix}_TRUSTED_CONNECTION", "false"
+            ).lower() == "true"
+
+        return base_config
 
     def is_tool_enabled(self, category: str, tool_name: str) -> bool:
         """Check if a specific tool is enabled.

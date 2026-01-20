@@ -29,6 +29,15 @@ databases:
       timeout: 30
       max_rows: 1000
 
+  warehouse:
+    type: postgresql
+    env_prefix: WAREHOUSE_DB
+    description: "SYSPRO Analytics Warehouse (PostgreSQL)"
+    readonly: true
+    settings:
+      timeout: 30
+      max_rows: 1000
+
 # Default database to use when not specified
 default_database: syspro_company
 

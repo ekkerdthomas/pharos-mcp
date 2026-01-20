@@ -8,6 +8,7 @@ MCP Tools for SYSPRO and Tempo integration.
 - tempo_analytics: Tempo MRP-specific analytics (dashboard, shortages, data quality)
 - tempo_enrichment: Cross-database Tempo-SYSPRO enrichment tools
 - tempo_mrp_debug: MRP debugging tools (explain suggestions, compare runs)
+- warehouse: PostgreSQL warehouse exploration tools
 """
 
 from .analytics import register_analytics_tools
@@ -17,6 +18,7 @@ from .schema import register_schema_tools
 from .tempo_analytics import register_tempo_analytics_tools
 from .tempo_enrichment import register_tempo_enrichment_tools
 from .tempo_mrp_debug import register_tempo_mrp_debug_tools
+from .warehouse import register_warehouse_tools
 
 __all__ = [
     "register_analytics_tools",
@@ -26,4 +28,5 @@ __all__ = [
     "register_tempo_analytics_tools",
     "register_tempo_enrichment_tools",
     "register_tempo_mrp_debug_tools",
+    "register_warehouse_tools",
 ]

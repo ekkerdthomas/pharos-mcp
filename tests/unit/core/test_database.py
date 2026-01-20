@@ -65,40 +65,29 @@ class TestDatabaseConnection:
         """Connection should be None initially."""
         assert db_connection._connection is None
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_connect_creates_connection(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
-        """connect() should create a new pymssql connection."""
+        """connect() should create a new connection via dialect."""
         mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
 
         result = db_connection.connect()
 
         assert result == mock_conn
-        mock_connect.assert_called_once_with(
-            server=db_connection.server,
-            user=db_connection.user,
-            password=db_connection.password,
-            database=db_connection.database,
-            timeout=db_connection.timeout,
-            login_timeout=db_connection.timeout,
-        )
+        db_connection._dialect.create_connection.assert_called_once_with(db_connection.config)
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_connect_reuses_existing(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """connect() should reuse existing alive connection."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = (1,)
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         # First connect
         conn1 = db_connection.connect()
@@ -106,24 +95,22 @@ class TestDatabaseConnection:
         conn2 = db_connection.connect()
 
         assert conn1 == conn2
-        assert mock_connect.call_count == 1
+        assert db_connection._dialect.create_connection.call_count == 1
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_connect_force_reconnect(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """connect(force_reconnect=True) should create new connection."""
         mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
 
         # First connect
         db_connection.connect()
         # Force reconnect
         db_connection.connect(force_reconnect=True)
 
-        assert mock_connect.call_count == 2
+        assert db_connection._dialect.create_connection.call_count == 2
 
     def test_disconnect_closes_connection(
         self, db_connection: DatabaseConnection
@@ -148,39 +135,35 @@ class TestDatabaseConnection:
     # Query Execution
     # =========================================================================
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_execute_query_returns_results(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
         sample_query_results: list[dict[str, Any]],
     ) -> None:
         """execute_query should return list of dicts."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.__iter__ = lambda _: iter(sample_query_results)
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         results = db_connection.execute_query("SELECT * FROM Test")
 
         assert len(results) == len(sample_query_results)
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_execute_query_respects_max_rows(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """execute_query should stop at max_rows."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         # Return more rows than limit
         mock_cursor.__iter__ = lambda _: iter(
             [{"id": i} for i in range(1000)]
         )
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         results = db_connection.execute_query(
             "SELECT * FROM Test", max_rows=10
@@ -188,18 +171,16 @@ class TestDatabaseConnection:
 
         assert len(results) == 10
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_execute_query_with_params(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """execute_query should pass params to cursor."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.__iter__ = lambda _: iter([])
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         db_connection.execute_query(
             "SELECT * FROM Test WHERE id = %s",
@@ -210,35 +191,31 @@ class TestDatabaseConnection:
             "SELECT * FROM Test WHERE id = %s", ("ABC",)
         )
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_execute_scalar_returns_single_value(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """execute_scalar should return first column of first row."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = (42,)
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         result = db_connection.execute_scalar("SELECT COUNT(*) FROM Test")
 
         assert result == 42
 
-    @patch("pharos_mcp.core.database.pymssql.connect")
     def test_execute_scalar_returns_none_for_empty(
         self,
-        mock_connect: MagicMock,
         db_connection: DatabaseConnection,
     ) -> None:
         """execute_scalar should return None if no rows."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = None
-        mock_connect.return_value = mock_conn
+        db_connection._dialect.create_connection = MagicMock(return_value=mock_conn)
+        db_connection._dialect.get_cursor = MagicMock(return_value=mock_cursor)
 
         result = db_connection.execute_scalar("SELECT * FROM Empty")
 

@@ -18,6 +18,7 @@ from .tools import (
     register_tempo_analytics_tools,
     register_tempo_enrichment_tools,
     register_tempo_mrp_debug_tools,
+    register_warehouse_tools,
 )
 
 # Configure logging
@@ -58,6 +59,9 @@ def create_server() -> FastMCP:
 
     logger.info("Registering Tempo MRP debug tools...")
     register_tempo_mrp_debug_tools(mcp)
+
+    logger.info("Registering warehouse tools...")
+    register_warehouse_tools(mcp)
 
     # Register resources
     logger.info("Registering resources...")
