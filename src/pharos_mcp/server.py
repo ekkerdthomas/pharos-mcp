@@ -15,6 +15,7 @@ from .tools import (
     register_financial_tools,
     register_query_tools,
     register_schema_tools,
+    register_tempo_analytics_tools,
 )
 
 # Configure logging
@@ -46,6 +47,9 @@ def create_server() -> FastMCP:
 
     logger.info("Registering analytics tools...")
     register_analytics_tools(mcp)
+
+    logger.info("Registering Tempo analytics tools...")
+    register_tempo_analytics_tools(mcp)
 
     # Register resources
     logger.info("Registering resources...")

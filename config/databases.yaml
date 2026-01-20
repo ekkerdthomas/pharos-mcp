@@ -20,6 +20,15 @@ databases:
       timeout: 30
       max_rows: 1000
 
+  tempo:
+    type: mssql
+    env_prefix: TEMPO_DB
+    description: "Tempo MRP Database (SYSPRO Extension)"
+    readonly: true
+    settings:
+      timeout: 30
+      max_rows: 1000
+
 # Default database to use when not specified
 default_database: syspro_company
 
