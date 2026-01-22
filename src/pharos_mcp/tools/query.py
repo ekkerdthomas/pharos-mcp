@@ -223,35 +223,3 @@ def register_query_tools(mcp: FastMCP) -> None:
             return f"Count of {table_name} WHERE {where}: {formatted} record(s)"
         else:
             return f"Total records in {table_name}: {formatted}"
-
-    @mcp.tool()
-    @audit_tool_call("list_databases")
-    async def list_databases() -> str:
-        """List available SYSPRO databases.
-
-        Returns:
-            List of configured databases.
-        """
-        from ..core.database import get_database_registry
-
-        registry = get_database_registry()
-        databases = registry.list_databases()
-
-        if not databases:
-            return "No databases configured."
-
-        lines = ["Available Databases:\n"]
-
-        for db in databases:
-            name = db.get("name", "")
-            desc = db.get("description", "")
-            readonly = "Read-only" if db.get("readonly") else "Read-write"
-            db_type = db.get("type", "unknown")
-
-            lines.append(f"  {name}")
-            if desc:
-                lines.append(f"    Description: {desc}")
-            lines.append(f"    Type: {db_type}, Access: {readonly}")
-            lines.append("")
-
-        return "\n".join(lines)

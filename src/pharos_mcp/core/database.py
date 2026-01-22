@@ -224,55 +224,245 @@ class DatabaseConnection:
 
 
 class DatabaseRegistry:
-    """Registry managing multiple database connections."""
+    """Registry managing multiple database connections.
+
+    Supports both server-configured databases (from databases.yaml) and
+    client-registered databases (registered at runtime via tools).
+    Client registrations take precedence over server configurations.
+    """
 
     def __init__(self):
         """Initialize the database registry."""
         self._connections: dict[str, DatabaseConnection] = {}
         self._config = get_config()
+        # Client-registered database configurations (take precedence over server config)
+        self._client_databases: dict[str, dict[str, Any]] = {}
+
+    def register_database(
+        self,
+        name: str,
+        config: dict[str, Any],
+        *,
+        allow_override: bool = True,
+    ) -> None:
+        """Register a client-defined database connection.
+
+        Args:
+            name: Unique identifier for this database.
+            config: Connection configuration dictionary containing:
+                - type: "mssql" or "postgresql"
+                - server: SQL Server host (for mssql)
+                - host: PostgreSQL host (for postgresql)
+                - port: Port number (for postgresql, default 5432)
+                - database: Database name
+                - user: Username
+                - password: Password
+                - readonly: Whether to enforce read-only (default True)
+                - settings: Optional dict with timeout, max_rows
+            allow_override: If False, raises error if name already exists.
+
+        Raises:
+            ValueError: If required fields are missing or override not allowed.
+        """
+        # Validate required fields
+        db_type = config.get("type", "mssql").lower()
+        if db_type not in ("mssql", "sqlserver", "postgresql", "postgres"):
+            raise ValueError(f"Unsupported database type: {db_type}")
+
+        if db_type in ("postgresql", "postgres"):
+            if not config.get("host"):
+                raise ValueError("PostgreSQL requires 'host' field")
+        else:
+            if not config.get("server"):
+                raise ValueError("SQL Server requires 'server' field")
+
+        if not config.get("database"):
+            raise ValueError("'database' field is required")
+        if not config.get("user"):
+            raise ValueError("'user' field is required")
+        if not config.get("password"):
+            raise ValueError("'password' field is required")
+
+        # Check for existing registration
+        if not allow_override and name in self._client_databases:
+            raise ValueError(f"Database '{name}' is already registered")
+
+        # Close existing connection if re-registering
+        if name in self._connections:
+            self._connections[name].disconnect()
+            del self._connections[name]
+
+        # Normalize the config
+        normalized_config = {
+            "type": db_type,
+            "database": config["database"],
+            "user": config["user"],
+            "password": config["password"],
+            "readonly": config.get("readonly", True),
+            "description": config.get("description", "Client-registered database"),
+            "settings": {
+                "timeout": config.get("settings", {}).get("timeout", 30),
+                "max_rows": config.get("settings", {}).get("max_rows", 1000),
+            },
+        }
+
+        if db_type in ("postgresql", "postgres"):
+            normalized_config["host"] = config["host"]
+            normalized_config["port"] = config.get("port", 5432)
+        else:
+            normalized_config["server"] = config["server"]
+
+        self._client_databases[name] = normalized_config
+        logger.info(f"Registered client database: {name} ({db_type})")
+
+    def unregister_database(self, name: str) -> bool:
+        """Remove a runtime-registered database.
+
+        Only databases registered via register_database tool can be unregistered.
+        Databases from config files (server or client env vars) cannot be removed.
+
+        Args:
+            name: Database name to unregister.
+
+        Returns:
+            True if database was unregistered, False if not found.
+
+        Raises:
+            ValueError: If attempting to unregister a config-defined database.
+        """
+        if name not in self._client_databases:
+            if name in self._config.client_databases:
+                raise ValueError(
+                    f"Cannot unregister '{name}': it is configured via "
+                    f"PHAROS_CLIENT_CONFIG or PHAROS_DATABASES"
+                )
+            if name in self._config.databases:
+                raise ValueError(
+                    f"Cannot unregister '{name}': it is a server-configured database"
+                )
+            return False
+
+        # Close connection if active
+        if name in self._connections:
+            self._connections[name].disconnect()
+            del self._connections[name]
+
+        del self._client_databases[name]
+        logger.info(f"Unregistered runtime database: {name}")
+        return True
 
     def get_connection(self, name: str | None = None) -> DatabaseConnection:
         """Get or create a database connection.
 
+        Priority order (highest to lowest):
+        1. Runtime registrations (via register_database tool)
+        2. Config client databases (via PHAROS_CLIENT_CONFIG/PHAROS_DATABASES)
+        3. Server databases (from databases.yaml)
+
         Args:
-            name: Database name from config. Defaults to default_database.
+            name: Database name. Defaults to default_database from server config.
 
         Returns:
             DatabaseConnection instance.
 
         Raises:
-            ValueError: If database not found in config.
+            ValueError: If database not found in any config source.
         """
         if name is None:
             name = self._config.default_database
 
         if name not in self._connections:
-            db_config = self._config.get_database_config(name)
+            # Priority 1: Runtime registrations
+            if name in self._client_databases:
+                db_config = self._client_databases[name]
+            # Priority 2: Config client databases (env var configs)
+            elif name in self._config.client_databases:
+                db_config = self._config.get_database_config(name)
+            # Priority 3: Server databases
+            elif name in self._config.databases:
+                db_config = self._config.get_database_config(name)
+            else:
+                raise ValueError(
+                    f"Database '{name}' not found. Use register_database to add it, "
+                    f"or configure via PHAROS_CLIENT_CONFIG/PHAROS_DATABASES."
+                )
             self._connections[name] = DatabaseConnection(name, db_config)
 
         return self._connections[name]
 
-    def list_databases(self) -> list[dict[str, Any]]:
-        """List all configured databases.
+    def has_database(self, name: str) -> bool:
+        """Check if a database is available from any source.
+
+        Args:
+            name: Database name to check.
 
         Returns:
-            List of database info dictionaries.
+            True if database is available.
+        """
+        return (
+            name in self._client_databases
+            or name in self._config.client_databases
+            or name in self._config.databases
+        )
+
+    def list_databases(self) -> list[dict[str, Any]]:
+        """List all available databases from all sources.
+
+        Returns:
+            List of database info dictionaries with source indicator.
+            Sources: "runtime" (register_database), "client" (env vars), "server" (yaml)
         """
         result = []
-        for name, db_config in self._config.databases.items():
+        seen_names: set[str] = set()
+
+        # Priority 1: Runtime-registered databases (highest)
+        for name, db_config in self._client_databases.items():
+            seen_names.add(name)
             result.append({
                 "name": name,
                 "description": db_config.get("description", ""),
                 "readonly": db_config.get("readonly", True),
                 "type": db_config.get("type", "mssql"),
+                "source": "runtime",
             })
-        return result
+
+        # Priority 2: Config client databases (from env vars)
+        for name, db_config in self._config.client_databases.items():
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+            result.append({
+                "name": name,
+                "description": db_config.get("description", ""),
+                "readonly": db_config.get("readonly", True),
+                "type": db_config.get("type", "mssql"),
+                "source": "client",
+            })
+
+        # Priority 3: Server-configured databases (lowest)
+        for name, db_config in self._config.databases.items():
+            if name in seen_names:
+                continue
+            result.append({
+                "name": name,
+                "description": db_config.get("description", ""),
+                "readonly": db_config.get("readonly", True),
+                "type": db_config.get("type", "mssql"),
+                "source": "server",
+            })
+
+        return sorted(result, key=lambda x: x["name"])
 
     def close_all(self) -> None:
         """Close all database connections."""
         for conn in self._connections.values():
             conn.disconnect()
         self._connections.clear()
+
+    def clear_client_databases(self) -> None:
+        """Remove all client-registered databases."""
+        for name in list(self._client_databases.keys()):
+            self.unregister_database(name)
 
 
 # Global registry instance

@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from .resources import register_schema_resources
 from .tools import (
     register_analytics_tools,
+    register_connection_tools,
     register_financial_tools,
     register_query_tools,
     register_schema_tools,
@@ -39,6 +40,9 @@ def create_server() -> FastMCP:
         Configured FastMCP Server instance.
     """
     # Register all tools
+    logger.info("Registering connection management tools...")
+    register_connection_tools(mcp)
+
     logger.info("Registering schema tools...")
     register_schema_tools(mcp)
 
