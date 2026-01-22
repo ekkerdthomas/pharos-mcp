@@ -33,6 +33,7 @@ env/
 # IDE
 .idea/
 .vscode/
+.mcp.json
 *.swp
 *.swo
 *~

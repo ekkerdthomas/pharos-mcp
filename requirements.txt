@@ -1,0 +1,9 @@
+# Pharos MCP - Dependencies
+# Generated from pyproject.toml
+
+mcp[cli]>=1.0.0
+pymssql>=2.3.0
+psycopg[binary]>=3.1.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+uvicorn>=0.30.0
