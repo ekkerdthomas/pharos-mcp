@@ -351,6 +351,38 @@ class DatabaseRegistry:
         logger.info(f"Unregistered runtime database: {name}")
         return True
 
+    def _find_database_name(self, name: str) -> tuple[str, str] | None:
+        """Find a database by name (case-insensitive).
+
+        Args:
+            name: Database name to find.
+
+        Returns:
+            Tuple of (actual_name, source) or None if not found.
+            Source is one of: "runtime", "client", "server"
+        """
+        # Exact match first (fast path)
+        if name in self._client_databases:
+            return (name, "runtime")
+        if name in self._config.client_databases:
+            return (name, "client")
+        if name in self._config.databases:
+            return (name, "server")
+
+        # Case-insensitive fallback
+        name_lower = name.lower()
+        for db_name in self._client_databases:
+            if db_name.lower() == name_lower:
+                return (db_name, "runtime")
+        for db_name in self._config.client_databases:
+            if db_name.lower() == name_lower:
+                return (db_name, "client")
+        for db_name in self._config.databases:
+            if db_name.lower() == name_lower:
+                return (db_name, "server")
+
+        return None
+
     def get_connection(self, name: str | None = None) -> DatabaseConnection:
         """Get or create a database connection.
 
@@ -358,6 +390,8 @@ class DatabaseRegistry:
         1. Runtime registrations (via register_database tool)
         2. Config client databases (via PHAROS_CLIENT_CONFIG/PHAROS_DATABASES)
         3. Server databases (from databases.yaml)
+
+        Database names are matched case-insensitively.
 
         Args:
             name: Database name. Defaults to default_database from server config.
@@ -371,27 +405,35 @@ class DatabaseRegistry:
         if name is None:
             name = self._config.default_database
 
-        if name not in self._connections:
-            # Priority 1: Runtime registrations
-            if name in self._client_databases:
-                db_config = self._client_databases[name]
-            # Priority 2: Config client databases (env var configs)
-            elif name in self._config.client_databases:
-                db_config = self._config.get_database_config(name)
-            # Priority 3: Server databases
-            elif name in self._config.databases:
-                db_config = self._config.get_database_config(name)
-            else:
-                raise ValueError(
-                    f"Database '{name}' not found. Use register_database to add it, "
-                    f"or configure via PHAROS_CLIENT_CONFIG/PHAROS_DATABASES."
-                )
-            self._connections[name] = DatabaseConnection(name, db_config)
+        # Check if we already have this connection (case-sensitive for cache)
+        if name in self._connections:
+            return self._connections[name]
 
-        return self._connections[name]
+        # Find the database (case-insensitive)
+        result = self._find_database_name(name)
+        if result is None:
+            raise ValueError(
+                f"Database '{name}' not found. Use register_database to add it, "
+                f"or configure via PHAROS_CLIENT_CONFIG/PHAROS_DATABASES."
+            )
+
+        actual_name, source = result
+
+        # Check cache with actual name
+        if actual_name in self._connections:
+            return self._connections[actual_name]
+
+        # Load config based on source
+        if source == "runtime":
+            db_config = self._client_databases[actual_name]
+        else:
+            db_config = self._config.get_database_config(actual_name)
+
+        self._connections[actual_name] = DatabaseConnection(actual_name, db_config)
+        return self._connections[actual_name]
 
     def has_database(self, name: str) -> bool:
-        """Check if a database is available from any source.
+        """Check if a database is available from any source (case-insensitive).
 
         Args:
             name: Database name to check.
@@ -399,11 +441,7 @@ class DatabaseRegistry:
         Returns:
             True if database is available.
         """
-        return (
-            name in self._client_databases
-            or name in self._config.client_databases
-            or name in self._config.databases
-        )
+        return self._find_database_name(name) is not None
 
     def list_databases(self) -> list[dict[str, Any]]:
         """List all available databases from all sources.
