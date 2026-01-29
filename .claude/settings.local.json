@@ -18,7 +18,8 @@
       "Bash(PYTHONPATH=src PHAROS_PROTOCOL_LOG_DIR=/tmp/test-logs python:*)",
       "Bash(PYTHONPATH=src timeout 3 python:*)",
       "Bash(git pull:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

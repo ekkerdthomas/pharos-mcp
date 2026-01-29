@@ -16,6 +16,7 @@ from .tools import (
     register_analytics_tools,
     register_connection_tools,
     register_financial_tools,
+    register_phx_tools,
     register_query_tools,
     register_schema_tools,
     register_tempo_analytics_tools,
@@ -68,6 +69,9 @@ def create_server() -> FastMCP:
 
     logger.info("Registering warehouse tools...")
     register_warehouse_tools(mcp)
+
+    logger.info("Registering PhX API tools...")
+    register_phx_tools(mcp)
 
     # Register resources
     logger.info("Registering resources...")

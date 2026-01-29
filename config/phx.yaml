@@ -1,0 +1,38 @@
+# PhX API Configuration
+# ====================
+# Configuration for the PhX REST API (SYSPRO WCF wrapper)
+
+phx:
+  # Environment variable prefix for credentials
+  env_prefix: PHX
+
+  # Connection defaults
+  defaults:
+    timeout: 30          # Request timeout in seconds
+    max_retries: 2       # Number of retry attempts on failure
+    retry_delay: 1.0     # Initial delay between retries (seconds)
+    retry_backoff: 2.0   # Exponential backoff multiplier
+
+  # Rate limiting (matches PhX server config)
+  rate_limiting:
+    requests_per_minute: 100
+
+  # Endpoint paths (relative to PHX_URL)
+  endpoints:
+    # Query endpoints (read-only)
+    health: /health
+    inventory: /api/QueryBo/inventory
+    wip_job: /api/QueryBo/wip-job
+    wip_tracking: /api/QueryBo/wip-tracking
+    requisition: /api/QueryBo/requisition
+    git: /api/QueryBo/git
+
+    # Transaction endpoints (write operations)
+    post_labour: /api/WipTransaction/post-labour
+    post_job_receipt: /api/WipTransaction/post-job-receipt
+    post_material: /api/WipTransaction/post-material
+    approve_requisition: /api/RequisitionBo/approve
+    clear_requisition: /api/RequisitionBo/clear
+
+    # Inventory adjustments
+    inventory_adjustment: /api/InventoryBo/adjustment
