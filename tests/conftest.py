@@ -159,16 +159,19 @@ def reset_singletons() -> Generator[None, None, None]:
     import pharos_mcp.config as config_module
     import pharos_mcp.core.audit as audit_module
     import pharos_mcp.core.database as db_module
+    import pharos_mcp.core.phx_client as phx_module
 
     # Store originals
     orig_registry = db_module._registry
     orig_audit = audit_module._audit_logger
     orig_config = config_module._config
+    orig_phx = phx_module._phx_client
 
     # Reset to None
     db_module._registry = None
     audit_module._audit_logger = None
     config_module._config = None
+    phx_module._phx_client = None
 
     yield
 
@@ -176,6 +179,7 @@ def reset_singletons() -> Generator[None, None, None]:
     db_module._registry = orig_registry
     audit_module._audit_logger = orig_audit
     config_module._config = orig_config
+    phx_module._phx_client = orig_phx
 
 
 @pytest.fixture

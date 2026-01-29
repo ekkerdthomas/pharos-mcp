@@ -12,6 +12,7 @@ Supports multiple configuration sources with the following priority:
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,26 @@ import yaml
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PhxConfig:
+    """Configuration for PhX API client."""
+
+    url: str
+    operator: str
+    operator_password: str
+    company_id: str
+    company_password: str
+    timeout: int = 30
+    max_retries: int = 2
+    retry_delay: float = 1.0
+    retry_backoff: float = 2.0
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if required fields are set."""
+        return bool(self.url and self.operator and self.company_id)
 
 
 class Config:
@@ -62,6 +83,7 @@ class Config:
         self._databases = self._load_yaml("databases.yaml")
         self._tools = self._load_yaml("tools.yaml")
         self._prompts = self._load_yaml("prompts.yaml")
+        self._phx = self._load_yaml("phx.yaml")
 
     def _load_client_configs(self) -> None:
         """Load client-provided database configurations.
@@ -294,6 +316,30 @@ class Config:
         if not category_config.get("enabled", False):
             return False
         return tool_name in category_config.get("tools", [])
+
+    def get_phx_config(self) -> PhxConfig:
+        """Get PhX API configuration.
+
+        Loads configuration from environment variables with PHX_ prefix.
+        Falls back to defaults from phx.yaml if available.
+
+        Returns:
+            PhxConfig instance with API connection settings.
+        """
+        phx_yaml = self._phx.get("phx", {})
+        defaults = phx_yaml.get("defaults", {})
+
+        return PhxConfig(
+            url=os.getenv("PHX_URL", ""),
+            operator=os.getenv("PHX_OPERATOR", ""),
+            operator_password=os.getenv("PHX_OPERATOR_PASSWORD", ""),
+            company_id=os.getenv("PHX_COMPANY_ID", ""),
+            company_password=os.getenv("PHX_COMPANY_PASSWORD", ""),
+            timeout=int(os.getenv("PHX_TIMEOUT", str(defaults.get("timeout", 30)))),
+            max_retries=int(os.getenv("PHX_MAX_RETRIES", str(defaults.get("max_retries", 2)))),
+            retry_delay=float(os.getenv("PHX_RETRY_DELAY", str(defaults.get("retry_delay", 1.0)))),
+            retry_backoff=float(os.getenv("PHX_RETRY_BACKOFF", str(defaults.get("retry_backoff", 2.0)))),
+        )
 
 
 # Global config instance
