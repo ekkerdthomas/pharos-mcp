@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<!-- Copyright 1994-2012 SYSPRO Ltd.-->
+<!--
+     Schema for Requisition Query Business Object
+-->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+	<xsd:element name="IncludeApproved" default="N">
+		<xsd:annotation>
+			<xsd:documentation>Do you wish to include approved requisitions ? (N - No, Y - Yes)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:enumeration value="N"/>
+				<xsd:enumeration value="Y"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="Key">
+		<xsd:annotation>
+			<xsd:documentation>The key to use for this query.</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType mixed="false">
+			<xsd:sequence>
+				<xsd:element ref="RequisitionUser"/>
+			</xsd:sequence>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:element name="Option">
+		<xsd:annotation>
+			<xsd:documentation>The list of options</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType mixed="false">
+			<xsd:sequence>
+				<xsd:element ref="UserPassword" minOccurs="0"/>
+				<xsd:element ref="TypeOfRequisition" minOccurs="0"/>
+				<xsd:element ref="RequisitionNumber" minOccurs="0"/>
+				<xsd:element ref="RequisitionLine" minOccurs="0"/>
+				<xsd:element ref="IncludeApproved" minOccurs="0"/>
+				<xsd:element ref="IncludeNotes" minOccurs="0"/>
+				<xsd:element ref="IncludePurchaseOrderComments" minOccurs="0"/>
+				<xsd:element ref="XslStylesheet" minOccurs="0"/>
+			</xsd:sequence>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:element name="IncludeNotes" default="N">
+		<xsd:annotation>
+			<xsd:documentation>Do you wish to include requisition notes ? (N - No, Y - Yes)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:enumeration value="Y"/>
+				<xsd:enumeration value="N"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="Query">
+		<xsd:annotation>
+			<xsd:documentation>The root element</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType mixed="false">
+			<xsd:sequence>
+				<xsd:element ref="Key"/>
+				<xsd:element ref="Option" minOccurs="0"/>
+			</xsd:sequence>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:element name="RequisitionLine">
+		<xsd:annotation>
+			<xsd:documentation>The requisition line number of the details to be returned (only used if TypeOfRequisition = S or T). If the line number is not supplied then all lines for the specified requisition will be returned.</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="RequisitionNumber">
+		<xsd:annotation>
+			<xsd:documentation>The requisition number of the details to be returned (only used if TypeOfRequisition = S or T)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="RequisitionUser">
+		<xsd:annotation>
+			<xsd:documentation>The user who is querying requisitions. If the user is not supplied then the user associated with the operator will be assumed. The user must be valid.</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:whiteSpace value="preserve"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="TypeOfRequisition" default="O">
+		<xsd:annotation>
+			<xsd:documentation>Type of requisition details to be returned (O = all requisitions originated by this user, R = all requisitions routed to this user , S = a single requisition originated by this user, using the values against the RequisitionNumber and RequisitionLine elements, T = a single requisition routed to this user, using the values against the RequisitionNumber and RequisitionLine elements.)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:enumeration value="O"/>
+				<xsd:enumeration value="R"/>
+				<xsd:enumeration value="S"/>
+				<xsd:enumeration value="T"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="UserPassword">
+		<xsd:annotation>
+			<xsd:documentation>The password associated with the user. The password is only required to be supplied if the user element was supplied and it differs from the user associated with the operator default. </xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:whiteSpace value="preserve"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="XslStylesheet">
+		<xsd:annotation>
+			<xsd:documentation>The XSL Stylesheet to use</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:whiteSpace value="preserve"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+	<xsd:element name="IncludePurchaseOrderComments" default="N">
+		<xsd:annotation>
+			<xsd:documentation>Do you wish to include comments for purchase order ? (N - No, Y - Yes)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:simpleType>
+			<xsd:restriction base="xsd:string">
+				<xsd:enumeration value="Y"/>
+				<xsd:enumeration value="N"/>
+			</xsd:restriction>
+		</xsd:simpleType>
+	</xsd:element>
+</xsd:schema>

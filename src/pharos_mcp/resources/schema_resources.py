@@ -5,7 +5,12 @@ Resources provide context that MCP clients can load to understand
 the SYSPRO database structure without making individual tool calls.
 """
 
+from pathlib import Path
+
 from mcp.server.fastmcp import FastMCP
+
+# Path to PhX schemas
+SCHEMAS_DIR = Path(__file__).parent.parent.parent.parent / "schemas" / "phx"
 
 
 def register_schema_resources(mcp: FastMCP) -> None:
@@ -189,3 +194,81 @@ and querying SYSPRO ERP databases.
 
 Use `search_tables` with module="{module.upper()}" to see all tables in this module.
 """
+
+    @mcp.resource("phx://schemas")
+    async def phx_schemas_list() -> str:
+        """List available PhX SYSPRO business object schemas."""
+        return """# PhX SYSPRO Business Object Schemas
+
+XML Schema Definition (XSD) files for SYSPRO business objects.
+
+## Schema Naming Convention
+- `{BO}.XSD` - Parameters schema (options, filters)
+- `{BO}DOC.XSD` - Document schema (data payload)
+
+## Query Business Objects
+| BO | Description | URI |
+|----|-------------|-----|
+| INVQRY | Inventory Query | `phx://schemas/INVQRY` |
+| WIPQRY | WIP Job Query | `phx://schemas/WIPQRY` |
+| WIPQVA | WIP Variance Query | `phx://schemas/WIPQVA` |
+| WIPQ40 | WIP Multi-level Query | `phx://schemas/WIPQ40` |
+| PORQRQ | Requisition Query | `phx://schemas/PORQRQ` |
+| INVQGD | Goods In Transit Query | `phx://schemas/INVQGD` |
+
+## Transaction Business Objects
+| BO | Description | URI |
+|----|-------------|-----|
+| WIPTLP | Post Labour | `phx://schemas/WIPTLP` |
+| WIPTJR | Post Job Receipt | `phx://schemas/WIPTJR` |
+| WIPTMI | Post Material Issue | `phx://schemas/WIPTMI` |
+| PORTRA | Requisition Approve | `phx://schemas/PORTRA` |
+| PORTRR | Requisition Route | `phx://schemas/PORTRR` |
+
+## Inventory Movement Business Objects
+| BO | Description | URI |
+|----|-------------|-----|
+| INVTMA | Inventory Adjustment | `phx://schemas/INVTMA` |
+| INVTMO | Warehouse Transfer Out | `phx://schemas/INVTMO` |
+| INVTMI | Warehouse Transfer In | `phx://schemas/INVTMI` |
+| INVTMB | Bin Transfer | `phx://schemas/INVTMB` |
+| INVTMT | GIT Transfer Out | `phx://schemas/INVTMT` |
+| INVTMN | GIT Transfer In | `phx://schemas/INVTMN` |
+
+## Usage
+Load a schema with: `phx://schemas/{BO_CODE}`
+Example: `phx://schemas/WIPTLP` for labour posting schema
+"""
+
+    @mcp.resource("phx://schemas/{bo_code}")
+    async def phx_schema(bo_code: str) -> str:
+        """Get XSD schema for a SYSPRO business object.
+
+        Args:
+            bo_code: Business object code (e.g., WIPTLP, INVQRY)
+        """
+        bo_code = bo_code.upper()
+
+        # Try to find both parameter and document schemas
+        param_file = SCHEMAS_DIR / f"{bo_code}.XSD"
+        doc_file = SCHEMAS_DIR / f"{bo_code}DOC.XSD"
+
+        result_parts = [f"# {bo_code} Schema\n"]
+
+        if param_file.exists():
+            result_parts.append(f"## Parameters Schema ({bo_code}.XSD)\n")
+            result_parts.append("```xml")
+            result_parts.append(param_file.read_text(encoding="utf-8"))
+            result_parts.append("```\n")
+
+        if doc_file.exists():
+            result_parts.append(f"## Document Schema ({bo_code}DOC.XSD)\n")
+            result_parts.append("```xml")
+            result_parts.append(doc_file.read_text(encoding="utf-8"))
+            result_parts.append("```\n")
+
+        if not param_file.exists() and not doc_file.exists():
+            available = [f.stem for f in SCHEMAS_DIR.glob("*.XSD") if not f.stem.endswith("DOC")]
+            return f"Schema '{bo_code}' not found.\n\nAvailable: {', '.join(sorted(set(available)))}"
+
+        return "\n".join(result_parts)

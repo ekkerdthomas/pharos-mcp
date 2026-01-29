@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<!-- Copyright 1994-2014 SYSPRO Ltd.-->
+<!-- 
+     Schema for the WIP Multi-level Job Query Business Object
+-->
+<xsd:schema elementFormDefault="qualified" attributeFormDefault="unqualified" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="PrintManufacturingUMQuantities">
+    <xsd:annotation>
+      <xsd:documentation>This is an option to print manufacturing unit of measure quantities instead of stocking unit of measure quantities. Valid entries are Y(Yes) or N(No). Default depends on your setup options.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;Y=Yes;N=No"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="Y"/>
+        <xsd:enumeration value="N"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="IncludeComponents">
+    <xsd:annotation>
+      <xsd:documentation>This option is only used where a detail report has been selected. When selected, completed operations and components will be included on the report. Y - Yes or N - No. The default is N.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;Y=Yes;N=No"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="Y"/>
+        <xsd:enumeration value="N"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="IncludeJobsAsOfDate">
+    <xsd:annotation>
+      <xsd:documentation>This field is only used if 'JobsToInclude' is set to F or S.  Indicates either the completion or start date for the jobs, depending on the 'JobsToInclude' option (which would be F or S respectively). The default is the current system date.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;browse={date}"/>
+    </xsd:annotation>
+    <xsd:complexType/>
+  </xsd:element>
+  <xsd:element name="JobsToInclude">
+    <xsd:annotation>
+      <xsd:documentation>Indicates which jobs should be included on the report.  All - includes all jobs in the bill of jobs.  F - include only jobs that should be complete by the date indicated in the 'IncludeJobsAsOfDate' element.  S - include only jobs that should have been started by the date indicated in the 'IncludeJobsAsOfDate' element. A - All, F - Only jobs that should be complete or S - Only jobs that should have been started. The default is A.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;A=All jobs in bill;F=Only jobs that should be complete;S=Only jobs that should have been started"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="A"/>
+        <xsd:enumeration value="F"/>
+        <xsd:enumeration value="S"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="Key">
+    <xsd:annotation>
+      <xsd:documentation>Key root element</xsd:documentation>
+      <xsd:appinfo source="screenItem=N"/>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element ref="MasterJob"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="MasterJob" type="xsd:string">
+    <xsd:annotation>
+      <xsd:documentation>This indicates the top level job against which sub jobs have been attached. If a sub job is entered here, then you are given the option to print the report from the master job level, or to print only the sub job entered.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;browse=WipMaster;key=true"/>
+    </xsd:annotation>
+  </xsd:element>
+  <xsd:element name="Option">
+    <xsd:annotation>
+      <xsd:documentation>This is the Parent Option element</xsd:documentation>
+      <xsd:appinfo source="screenItem=N"/>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element ref="PrintFromMasterJob"/>
+        <xsd:element ref="ReportType"/>
+        <xsd:element ref="SummaryDetail"/>
+        <xsd:element ref="IncludeComponents"/>
+        <xsd:element ref="JobsToInclude"/>
+        <xsd:element ref="IncludeJobsAsOfDate"/>
+        <xsd:element ref="PrintManufacturingUMQuantities"/>
+        <xsd:element ref="XslStylesheet"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="PrintFromMasterJob">
+    <xsd:annotation>
+      <xsd:documentation>Indicates whether report is to be printed from master job level, or to only print the sub job entered (only used if sub job has been entered). Y - Yes or N - No. The default is Y.</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;Y=Yes;N=No"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="Y"/>
+        <xsd:enumeration value="N"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="Query">
+    <xsd:annotation>
+      <xsd:documentation>This is the Root element</xsd:documentation>
+      <xsd:appinfo source="screenItem=N"/>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element ref="Key"/>
+        <xsd:element ref="Option"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="ReportType">
+    <xsd:annotation>
+      <xsd:documentation>Tabular option lists jobs in finish date sequence (latest to earliest). Jobs with the same finish date are listed in job number sequence (lowest to highest job number). Chart option lists jobs in start date sequence (earliest to latest). Jobs with the same start date are listed in job number sequence (lowest to highest). T - Tabular or C - Chart. The default is T</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;T=Tabular;C=Chart"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="T"/>
+        <xsd:enumeration value="C"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="SummaryDetail">
+    <xsd:annotation>
+      <xsd:documentation>This option is only used when printing a tabular report. Summary prints details of jobs relating only to parent parts. Detail prints details of jobs with the option to include operations and components. S - Summary or D - Detail. The default is S</xsd:documentation>
+      <xsd:appinfo source="screenItem=Y;S=Summary;D=Detail"/>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:enumeration value="S"/>
+        <xsd:enumeration value="D"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="XslStylesheet">
+    <xsd:complexType/>
+  </xsd:element>
+</xsd:schema>

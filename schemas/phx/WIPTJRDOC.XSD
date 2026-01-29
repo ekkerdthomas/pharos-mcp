@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<!-- Copyright 1994-2023 SYSPRO Ltd.-->
+<!-- 
+     Schema for the Job Receipt Posting Business Object
+-->
+<xsd:schema elementFormDefault="qualified" attributeFormDefault="unqualified" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="PostJobReceipts">
+    <xsd:annotation>
+      <xsd:documentation>This is the root element.</xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType mixed="false">
+      <xsd:choice maxOccurs="unbounded">
+        <xsd:element name="Item" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>This is the top element for all data required for the transaction.</xsd:documentation>
+          </xsd:annotation>
+          <xsd:complexType mixed="false">
+            <xsd:sequence>
+              <xsd:element name="Journal" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This is the journal number to which the transaction journal entries generated will be added. It must be valid for the current posting period and warehouse and may not have been printed already. If not supplied a new journal will be created.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Job">
+                <xsd:annotation>
+                  <xsd:documentation>This element is mandatory and must contain a valid job against which the receipt is to be made</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="CoProductLine" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the co-product line number to be receipted for a notional job. This element will be ignored if the job is not a notional job.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LedgerCode" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>Ledger code against which the merchandise amount of the received items is to be distributed. This element is ignored if the inventory setup option 'Request ledger codes for inventory transactions' is switched off or the option to 'Request ledger code for receipts' is switched off. If the ledger code is not returned then the WIP control account defined against the job is used.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="PasswordForLedgerCode" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>If a ledger code is returned and it requires a password, this element must contain the relevant password for the specified ledger code.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="UnitOfMeasure" default="S">
+                <xsd:annotation>
+                  <xsd:documentation>Select 'S' for stocking uom, 'A' for alternate uom, 'O' for other uom or 'M' for manufacturing uom. Quantities and times entered will be according to the unit of measure selected.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="S" />
+                    <xsd:enumeration value="A" />
+                    <xsd:enumeration value="O" />
+                    <xsd:enumeration value="M" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Quantity" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>Quantity to receive in against the job or co-product. If not returned or returned as zero then the quantity to receive is calculated as the difference between the quantity to manufacture and the quantity received in against the job or co-product.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="InspectionFlag" default="N" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element specifies whether you are receipting a job into inspection or directly into stock.  This element is only valid when the item is lot traceable and has been setup to either receipt the quantity into inspection or stock. Possible values are 'N' or 'Y'. The default is 'N'.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="CostBasis" default="C" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element specifies which cost basis to use, for the job receipt, to reduce the value of work in progress. If standard costing is in use then and the last cost is not required then this element is ignored as the cost used is always the current cost.
+Valid values are:
+C - Current warehouse cost
+W - Outstanding work in progress value 
+A - Actual costs 
+E -  Expected cost
+M - Manual unit cost entered against the receipt cost element</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="C" />
+                    <xsd:enumeration value="W" />
+                    <xsd:enumeration value="A" />
+                    <xsd:enumeration value="E" />
+                    <xsd:enumeration value="M" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="ReceiptCost" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element contains the unit cost required if the cost basis is defined as Manual (M). It must be positive and in the stocking unit of measure.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="UseSingleTypeABCElements" default="N" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element is only required if ABC costing is in use. If not supplied and ABC costing is required, it defaults to 'N'. Valid values are 'N' and 'Y'.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="MaterialDistributionValue" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>Element contains the value of material to reduce the material costs against the job. If not returned or returned as spaces then the system defaults to the amount calculated from the proportion of expected material costs of the job. The sum of this plust the labor distribution value must together equal the total cost of the receipt.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LaborDistributionValue" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>Element contains the value of labor to reduce the labor costs against the job. If not returned or returned as spaces then the system defaults to the amount calculated from the proportion of expected labor costs of the job. The sum of this plus the material distribution value must together equal the total cost of the receipt.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="JobComplete" default=" " minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element contains the flag indicating whether the job should be flagged as complete or not. Please note that this element does not apply to notional jobs. Enter Y to set the job to be complete.  Enter N to set the job to be not complete. Enter Spaces if you want the completion status to be determined by the program (i.e. the quantity already manufactured for the job is added to the quantity being received in. A comparison is made to the original quantity that was required to be manufactured. If the result is equal to (or greater than) the original quantity to be manufactured, then the job is set to complete. If it is less than the original quantity to be manufactured, then the job is set to be not complete.)</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value=" " />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="CoProductComplete" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates whether the co-product should be flagged as complete or not. Enter Y to set the co-product to be complete. Enter N to set the co-product to be not complete. Enter Spaces if you want the completion status to be determined by the program (i.e. the quantity already manufactured for the co-product is added to the quantity being received in. A comparison is made to the original quantity that was required to be manufactured. If the result is equal to (or greater than) the original quantity to be manufactured, then the co-product is set to complete. If it is less than the original quantity to be manufactured, then the co-product is set to be not complete.)</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Reference" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element can contain a source reference for the receipt transaction. This reference is printed on the journal report and is stored on the movement file.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Notation" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element can contain a notation which is printed on the journal report after the transaction details.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="IncreaseSalesOrderQuantity" default="N" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element is optional. If the Job is linked to a Sales Order and the receipt quantity is greater than the quantity on back order against the sales order, the order quantity will be increased to the receipt quantity, if this element is set to 'Y'.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="SalesOrderComplete" default="N" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>If receipting in a quantity for a job that is attached to a sales order and the quantity being received in does not satisfy the sales order's back order quantity  then this element can be set to 'Y' to set the sales order to be complete (i.e. reduce the sales order quantity to equal the quantity shipped).</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Lot" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>The following only applies if the stock item being received in is lot traceable and lot traceability is in use. The entry is mandatory if processing a positive receipt and the lot numbering method is manual and the option to use the job number as the lot has not been set. If a negative receipt is being processed, the lot must be entered.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotConcession" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the lot concession number. If the element 'IgnoreWarnings' is set to 'N' in the parameters, a warning will be given if it is blank.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotExpiryDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element contains the expiry date for the lot being receipted in. If it is not returned, the lot expiry date is calculated based on the shelf life defined against the stock item. This date can be returned as zero which indicates no expiry.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:date" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotUseByDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the recommended date the Lot should be used by. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotSellByDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the date by when the Lot should be sold. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotInternalExpiryDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the an internal expiry date. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotManufactureDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the date the Lot was manufactured. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotDispatchDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the date the Lot was or will be dispatched by. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="LotBestBeforeDate" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the date the Lot is best before. Format CCYY-MM-DD.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string" />
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="BinLocation" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element contains the bin location of the stock being received. It is ignored if multiple bins are not in use. If not returned on a positive receipt then the default bin defined against the stock warehouse record is used.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="BinOnHold" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>If the work in progress option to place multiple bins on hold when receipting a job is set to 'Prompt operator', this element can contain 'Y' or 'N'. It is ignored in all other cases.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="BinOnHoldReason" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>If the bin  being receipted in is to be placed on hold (element BinOnHold = 'Y') then a reason can be entered and this is stored against the bin record.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="BinUpdateWhDefault" default="N" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>Enter 'Y' against this element if you wish the default bin held against the stock warehouse to be changed to the bin in the 'BinLocation' element.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                    <xsd:enumeration value="" />
+                    <xsd:enumeration value="N" />
+                    <xsd:enumeration value="Y" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="FifoBucket" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This element is optional. If FIFO is installed and processing a negative receipt, a specific FIFO bucket may be specified for updating. If a FIFO bucket is supplied when processing a positive receipt, it will be ignored.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="Serials" minOccurs="0" maxOccurs="unbounded">
+                <xsd:annotation>
+                  <xsd:documentation>A set of serial numbers and relevant information must be supplied if stock item specified is serialized.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:complexType mixed="false">
+                  <xsd:all minOccurs="0">
+                    <xsd:element name="SerialNumber">
+                      <xsd:annotation>
+                        <xsd:documentation>Serial number being received into stock. The format is either alphanumeric or numeric depending on the serial numbering method used.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element ref="SerialQuantity" />
+                    <xsd:element ref="SerialExpiryDate" minOccurs="0" />
+                    <xsd:element ref="SerialLocation" minOccurs="0" />
+                    <xsd:element name="SerialFifoBucket" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>The FIFO/actual costing bucket which the quantity must be issued from, this must be supplied when doing a negative receipt.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                  </xsd:all>
+                </xsd:complexType>
+              </xsd:element>
+              <xsd:element name="SerialRange" minOccurs="0" maxOccurs="unbounded">
+                <xsd:annotation>
+                  <xsd:documentation>The contents of this node is used to specify a prefix and suffix or starting serial number for a range of new serial numbers to be generated. It is only valid when processing receipts for manual serialized stock items. It has two formats, depending on the serial key type. If serial numbers are alphanumeric, a prefix and a suffix need to be supplied. If serial numbers are numeric, a starting serial number is required.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:complexType mixed="false">
+                  <xsd:all minOccurs="0">
+                    <xsd:element name="SerialPrefix" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element specifies the prefix to be used when generating a range of alphanumeric serial numbers. Prefix + suffix cannot exceed the size of the serial number key. Mandatory for alphanumeric serial numbers.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="SerialSuffix" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element specifies the suffix to be used when generating a range of alphanumeric serial numbers. The suffix element must be numeric. Prefix + suffix cannot exceed the size of the serial number key. Mandatory for alphanumeric serial numbers.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="StartSerialNumber" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element specifies the starting serial number when generating a range of numeric serial numbers. Mandatory for numeric serial numbers.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="SerialQuantity" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element is mandatory and specifies the quantity to receive for the specified serial number. If within the 'Serials' group and manual serial, it can only be 1 or -1. If within the 'SerialRange' or 'SerialAllocation' group, it is the total quantity to be received for the specified range.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="SerialExpiryDate" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element contains the expiry date of a new serial number or range of serial numbers being received into stock.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:date" />
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="SerialLocation" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element contains the location of the serial number or range of serial numbers being received when processing a positive receipt.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                  </xsd:all>
+                </xsd:complexType>
+              </xsd:element>
+              <xsd:element name="SerialAllocation" minOccurs="0" maxOccurs="unbounded">
+                <xsd:annotation>
+                  <xsd:documentation>This element is used to specify a range of serial numbers to be processed. It is only valid when processing negative receipts for manual serialized stock items.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:complexType mixed="false">
+                  <xsd:all minOccurs="0">
+                    <xsd:element name="FromSerialNumber">
+                      <xsd:annotation>
+                        <xsd:documentation>This element specifies the starting serial number to be allocated when processing negative receipts.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="ToSerialNumber" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>This element specifies the ending serial number to be allocated when processing negative receipts. If this element is not supplied, serial numbers will be allocated starting at the FromSerialNumber until the specified quantity has been allocated.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="SerialQuantity">
+                      <xsd:annotation>
+                        <xsd:documentation>This element is mandatory and specifies the quantity to receive for the specified serial number. If within the 'Serials' group and manual serial, it can only be 1 or -1. If within the 'SerialRange' or 'SerialAllocation' group, it is the total quantity to be received for the specified range.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                  </xsd:all>
+                </xsd:complexType>
+              </xsd:element>
+              <xsd:element name="WipInspectionReference" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the WIP inspection reference that will be created when the job is receipted into WIP inspection. This element is only applicable when WIP inspection is in use and the job is for a lot traceable or inspectable item. This element will be ignored when you have selected auto-numbering for the WIP inspection reference. The format is either alphanumeric or numeric depending on the key configuration option for WIP inspection reference within SYSPRO.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="WipInspectionNarration" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the narration for the WIP inspection reference that will be created when the job is receipted into WIP inspection.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="HierarchyJob" minOccurs="0">
+                <xsd:complexType mixed="false">
+                  <xsd:all>
+                    <xsd:element name="Head" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>Head is part of a unique key to identify a hierarchy. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="Section1" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>Section1 is part of a unique key to identify a hierarchy. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="Section2" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>Section2 is part of a unique key to identify a hierarchy. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="Section3" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>Section3 is part of a unique key to identify a hierarchy. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="Section4" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>Section4 is part of a unique key to identify a hierarchy. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                    <xsd:element name="CostOfSalesAmount" minOccurs="0">
+                      <xsd:annotation>
+                        <xsd:documentation>You use the cost of sales amount field to assign the outstanding cost of sales amount to specified hierarchies. The cost of sales amount includes the combined labor and material values. Only applicable when projects and contracts is installed and the job is a hierarchical job.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                          <xsd:whiteSpace value="preserve" />
+                        </xsd:restriction>
+                      </xsd:simpleType>
+                    </xsd:element>
+                  </xsd:all>
+                </xsd:complexType>
+              </xsd:element>
+              <xsd:element name="AddReference" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>You can use the additional reference field for your own use to hold any extra information required.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="MaterialReference" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>You can use the material additional reference field for your own use to hold any extra information required. The field is stored on the job detail posting file.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="QuantityFromStock" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>When processing a negative receipt for a job attached to a sales order then enter a quantity here to take from the stock back to the job. The difference between this quantity and the receipt quantity will be taken from the sales order. It is important to note that a quantity can only be taken from stock if part of the quantity manufactured was receipted into stock.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+              <xsd:element name="CustomForm">
+                <xsd:annotation>
+                  <xsd:documentation>This is the top element for the set of custom form columns and values to be posted with the transaction. It only applies when receipting a sub job as this then issues material to the master job - this is the transaction where the custom form fields will be posted to.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="CustomItem" minOccurs="0" maxOccurs="unbounded">
+                      <xsd:annotation>
+                        <xsd:documentation>This element contains a custom form column and value.</xsd:documentation>
+                      </xsd:annotation>
+                      <xsd:complexType>
+                        <xsd:sequence>
+                          <xsd:element name="CustomColumn" type="xsd:string" minOccurs="0">
+                            <xsd:annotation>
+                              <xsd:documentation>This element specifies the custom form column.</xsd:documentation>
+                            </xsd:annotation>
+                          </xsd:element>
+                          <xsd:element name="CustomValue" minOccurs="0" />
+                        </xsd:sequence>
+                      </xsd:complexType>
+                    </xsd:element>
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              <xsd:element name="InspectionLevel" type="xsd:string" default="GII" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>This indicates the Inspection Level that must be used against the Quality Management inspection. Only relevant on a reversal of a receipt quantity which results in the quantity counted being equal to the quantity receipted in inspection and the Sample basis is 'Sample quantity'. Format is 4 alphanumeric characters. The default is 'GII'.</xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <xsd:element name="eSignature" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>If required, this element must contain a GUID, for the eSignature system to accept the transaction as having been authenticated. The GUID format is in the format {36303032-3330-3031-3038-323434363433}, where the numbers can be replaced with any character. It is up to the developer to have requested a password to protect the transaction. An example is that a GUID associated with the act of entering a valid password could be obtained and presented.</xsd:documentation>
+                </xsd:annotation>
+                <xsd:simpleType>
+                  <xsd:restriction base="xsd:string">
+                    <xsd:whiteSpace value="preserve" />
+                  </xsd:restriction>
+                </xsd:simpleType>
+              </xsd:element>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:choice>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:element name="SerialExpiryDate">
+    <xsd:annotation>
+      <xsd:documentation>This element contains the expiry date of a new serial number or range of serial numbers being received into stock.</xsd:documentation>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:date" />
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="SerialLocation">
+    <xsd:annotation>
+      <xsd:documentation>This element contains the location of the serial number or range of serial numbers being received when processing a positive receipt.</xsd:documentation>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:whiteSpace value="preserve" />
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+  <xsd:element name="SerialQuantity">
+    <xsd:annotation>
+      <xsd:documentation>This element is mandatory and specifies the quantity to receive for the specified serial number. If within the 'Serials' group and manual serial, it can only be 1.  If within the 'SerialRange' or 'SerialAllocation' group, it is the total quantity to be received for the specified range.</xsd:documentation>
+    </xsd:annotation>
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:string">
+        <xsd:whiteSpace value="preserve" />
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:element>
+</xsd:schema>
