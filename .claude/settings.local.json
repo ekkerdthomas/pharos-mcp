@@ -10,7 +10,9 @@
       "Bash(cmd /c \"set PYTHONPATH=src && .venv\\\\Scripts\\\\python -m pharos_mcp.server --help\")",
       "Bash($env:PYTHONPATH='src')",
       "Bash(.venv/Scripts/python:*)",
-      "Bash(PYTHONPATH=src .venv/Scripts/python:*)"
+      "Bash(PYTHONPATH=src .venv/Scripts/python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
