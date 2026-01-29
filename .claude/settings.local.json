@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv:*)",
+      "Bash(py -m venv:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(pip install:*)",
+      "Bash(cmd /c \".venv\\\\Scripts\\\\activate && pip install -r requirements.txt\")",
+      "Bash(.venv/Scripts/pip:*)",
+      "Bash(cmd /c \"set PYTHONPATH=src && .venv\\\\Scripts\\\\python -m pharos_mcp.server --help\")",
+      "Bash($env:PYTHONPATH='src')",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(PYTHONPATH=src .venv/Scripts/python:*)"
+    ]
+  }
+}
