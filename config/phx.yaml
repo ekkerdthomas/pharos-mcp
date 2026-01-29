@@ -44,5 +44,12 @@ phx:
     warehouse_transfer_out: /api/InvMovements/post-warehouse-transfer-out
     warehouse_transfer_in: /api/InvMovements/post-warehouse-transfer-in
 
+    # Stock Take
+    stock_take_select: /api/InvStockTake/post-select
+    stock_take_capture: /api/InvStockTake/post-capture
+    stock_take_confirm: /api/InvStockTake/post-confirm
+    stock_take_cancel: /api/InvStockTake/post-cancel
+    stock_take_query: /api/InvStockTake/query
+
     # Generic Business Object
     business_object: /api/BusinessObject/call

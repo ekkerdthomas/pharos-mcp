@@ -913,6 +913,161 @@ class PhxClient:
             "POST", "/api/InvMovements/post-warehouse-transfer-in", {"items": [item]}
         )
 
+    # === Stock Take Methods ===
+
+    async def stock_take_select(
+        self,
+        warehouse: str,
+        stock_code: str = "",
+        planner: str = "",
+        buyer: str = "",
+        product_class: str = "",
+        include_zero_qty: str = "N",
+    ) -> dict[str, Any]:
+        """Select items for stock take.
+
+        Defines which items will be included in a stock take cycle count.
+
+        Args:
+            warehouse: Warehouse code for stock take
+            stock_code: Filter by stock code pattern (optional)
+            planner: Filter by planner code (optional)
+            buyer: Filter by buyer code (optional)
+            product_class: Filter by product class (optional)
+            include_zero_qty: Include zero quantity items (Y/N)
+
+        Returns:
+            Stock take selection result with item count
+        """
+        data: dict[str, Any] = {
+            "warehouse": warehouse,
+            "includeZeroQty": include_zero_qty,
+        }
+        if stock_code:
+            data["stockCode"] = stock_code
+        if planner:
+            data["planner"] = planner
+        if buyer:
+            data["buyer"] = buyer
+        if product_class:
+            data["productClass"] = product_class
+        return await self._request("POST", "/api/InvStockTake/post-select", data)
+
+    async def stock_take_capture(
+        self,
+        warehouse: str,
+        stock_code: str,
+        quantity_counted: float,
+        bin_location: str = "",
+        lot: str = "",
+        serial: str = "",
+    ) -> dict[str, Any]:
+        """Capture stock take count quantity.
+
+        Records the physical count quantity for an item during stock take.
+
+        Args:
+            warehouse: Warehouse code
+            stock_code: Stock code being counted
+            quantity_counted: Physical count quantity
+            bin_location: Bin location (optional)
+            lot: Lot number for lot-tracked items (optional)
+            serial: Serial number for serialized items (optional)
+
+        Returns:
+            Capture result
+        """
+        data: dict[str, Any] = {
+            "warehouse": warehouse,
+            "stockCode": stock_code,
+            "quantityCounted": str(quantity_counted),
+        }
+        if bin_location:
+            data["bin"] = bin_location
+        if lot:
+            data["lot"] = lot
+        if serial:
+            data["serial"] = serial
+        return await self._request("POST", "/api/InvStockTake/post-capture", data)
+
+    async def stock_take_confirm(
+        self,
+        warehouse: str,
+        stock_code: str = "",
+        post_variance: str = "Y",
+    ) -> dict[str, Any]:
+        """Confirm and finalize stock take.
+
+        Finalizes the stock take and optionally posts variances to inventory.
+
+        Args:
+            warehouse: Warehouse code
+            stock_code: Specific stock code to confirm (optional, confirms all if empty)
+            post_variance: Post variance adjustments to inventory (Y/N)
+
+        Returns:
+            Confirmation result with variance summary
+        """
+        data: dict[str, Any] = {
+            "warehouse": warehouse,
+            "postVariance": post_variance,
+        }
+        if stock_code:
+            data["stockCode"] = stock_code
+        return await self._request("POST", "/api/InvStockTake/post-confirm", data)
+
+    async def stock_take_cancel(
+        self,
+        warehouse: str,
+        stock_code: str = "",
+    ) -> dict[str, Any]:
+        """Cancel active stock take.
+
+        Cancels an in-progress stock take without posting variances.
+
+        Args:
+            warehouse: Warehouse code
+            stock_code: Specific stock code to cancel (optional, cancels all if empty)
+
+        Returns:
+            Cancellation result
+        """
+        data: dict[str, Any] = {
+            "warehouse": warehouse,
+        }
+        if stock_code:
+            data["stockCode"] = stock_code
+        return await self._request("POST", "/api/InvStockTake/post-cancel", data)
+
+    async def stock_take_query(
+        self,
+        warehouse: str,
+        stock_code: str = "",
+        include_counted: str = "Y",
+        include_uncounted: str = "Y",
+    ) -> dict[str, Any]:
+        """Query stock take status and details.
+
+        Retrieves current stock take information including counts and variances.
+
+        Args:
+            warehouse: Warehouse code
+            stock_code: Filter by stock code (optional)
+            include_counted: Include items already counted (Y/N)
+            include_uncounted: Include items not yet counted (Y/N)
+
+        Returns:
+            Stock take details with item statuses and variances
+        """
+        data: dict[str, Any] = {
+            "warehouse": warehouse,
+            "includeCounted": include_counted,
+            "includeUncounted": include_uncounted,
+        }
+        if stock_code:
+            data["stockCode"] = stock_code
+        return await self._request("POST", "/api/InvStockTake/query", data)
+
 
 # Global client instance
 _phx_client: PhxClient | None = None

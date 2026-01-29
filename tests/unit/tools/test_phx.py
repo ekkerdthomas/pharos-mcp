@@ -877,15 +877,220 @@ class TestPhxTransferIn:
             assert "Completed" in result
 
 
+class TestPhxStockTakeSelect:
+    """Test phx_stock_take_select tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_select(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.stock_take_select = AsyncMock(
+            return_value={"success": True, "itemsSelected": 50}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_stock_take_select"](
+                warehouse="WH1",
+                stock_code="A%",
+            )
+
+            assert "Complete" in result
+            assert "WH1" in result
+            assert "phx_stock_take_capture" in result
+
+
+class TestPhxStockTakeCapture:
+    """Test phx_stock_take_capture tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_capture(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.stock_take_capture = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_stock_take_capture"](
+                warehouse="WH1",
+                stock_code="TEST001",
+                quantity_counted=100.0,
+            )
+
+            assert "Captured" in result
+            assert "TEST001" in result
+            assert "100" in result
+
+
+class TestPhxStockTakeConfirm:
+    """Test phx_stock_take_confirm tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_confirm(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.stock_take_confirm = AsyncMock(
+            return_value={"success": True, "variancesPosted": 5}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_stock_take_confirm"](
+                warehouse="WH1",
+            )
+
+            assert "Confirmed" in result
+            assert "WH1" in result
+
+
+class TestPhxStockTakeCancel:
+    """Test phx_stock_take_cancel tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_cancel(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.stock_take_cancel = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_stock_take_cancel"](
+                warehouse="WH1",
+            )
+
+            assert "Cancelled" in result
+            assert "WH1" in result
+
+
+class TestPhxStockTakeQuery:
+    """Test phx_stock_take_query tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_query(self, mock_client: MagicMock) -> None:
+        """Should return stock take details."""
+        mock_client.stock_take_query = AsyncMock(
+            return_value={"items": [{"stockCode": "TEST001", "counted": True}]}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_stock_take_query"](
+                warehouse="WH1",
+            )
+
+            assert "Stock Take Status" in result
+            assert "WH1" in result
+
+
 class TestPhxToolsRegistrationCount:
     """Test that all PhX tools are registered."""
 
     def test_all_tools_registered(self) -> None:
-        """register_phx_tools should add all 16+ tools to MCP server."""
+        """register_phx_tools should add all 21+ tools to MCP server."""
         mock_mcp = MagicMock()
         mock_mcp.tool = MagicMock(return_value=lambda f: f)
 
         register_phx_tools(mock_mcp)
 
-        # We now have 8 original tools + 8 new inventory movement tools = 16
-        assert mock_mcp.tool.call_count >= 16
+        # 8 original + 8 inventory movement + 5 stock take = 21
+        assert mock_mcp.tool.call_count >= 21

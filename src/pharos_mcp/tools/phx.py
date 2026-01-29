@@ -21,6 +21,11 @@ Tools:
 - phx_git_transfer_in: Receive GIT transfer
 - phx_transfer_out: Start two-step transfer
 - phx_transfer_in: Complete two-step transfer
+- phx_stock_take_select: Select items for stock take
+- phx_stock_take_capture: Capture count quantities
+- phx_stock_take_confirm: Finalize stock take
+- phx_stock_take_cancel: Cancel stock take
+- phx_stock_take_query: Query stock take status
 """
 
 import json
@@ -1078,6 +1083,281 @@ def register_phx_tools(mcp: FastMCP) -> None:
             return (
                 f"# Transfer In Failed\n\n"
                 f"Stock: {stock_code}, Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    # === Stock Take Tools ===
+
+    @mcp.tool()
+    @audit_tool_call("phx_stock_take_select")
+    async def phx_stock_take_select(
+        warehouse: str,
+        stock_code: str = "",
+        planner: str = "",
+        buyer: str = "",
+        product_class: str = "",
+        include_zero_qty: str = "N",
+    ) -> str:
+        """Select items for stock take in SYSPRO.
+
+        Defines which items will be included in a stock take cycle count.
+        This is the first step in the stock take process.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            warehouse: Warehouse code for stock take.
+            stock_code: Filter by stock code pattern (optional, use % as wildcard).
+            planner: Filter by planner code (optional).
+            buyer: Filter by buyer code (optional).
+            product_class: Filter by product class (optional).
+            include_zero_qty: Include zero quantity items (Y/N, default N).
+
+        Returns:
+            Selection result with count of items selected, or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.stock_take_select(
+                warehouse=warehouse,
+                stock_code=stock_code,
+                planner=planner,
+                buyer=buyer,
+                product_class=product_class,
+                include_zero_qty=include_zero_qty,
+            )
+            filters = []
+            if stock_code:
+                filters.append(f"Stock: {stock_code}")
+            if planner:
+                filters.append(f"Planner: {planner}")
+            if buyer:
+                filters.append(f"Buyer: {buyer}")
+            if product_class:
+                filters.append(f"Class: {product_class}")
+            filter_str = ", ".join(filters) if filters else "All items"
+            return (
+                f"# Stock Take Selection Complete\n\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Filters**: {filter_str}\n"
+                f"**Include Zero Qty**: {include_zero_qty}\n\n"
+                f"Use `phx_stock_take_capture` to record counts.\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Stock Take Selection Failed\n\n"
+                f"Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_stock_take_capture")
+    async def phx_stock_take_capture(
+        warehouse: str,
+        stock_code: str,
+        quantity_counted: float,
+        bin_location: str = "",
+        lot: str = "",
+        serial: str = "",
+    ) -> str:
+        """Capture stock take count quantity in SYSPRO.
+
+        Records the physical count quantity for an item during stock take.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            warehouse: Warehouse code.
+            stock_code: Stock code being counted.
+            quantity_counted: Physical count quantity.
+            bin_location: Bin location (optional).
+            lot: Lot number for lot-tracked items (optional).
+            serial: Serial number for serialized items (optional).
+
+        Returns:
+            Capture result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.stock_take_capture(
+                warehouse=warehouse,
+                stock_code=stock_code,
+                quantity_counted=quantity_counted,
+                bin_location=bin_location,
+                lot=lot,
+                serial=serial,
+            )
+            return (
+                f"# Stock Take Count Captured\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Quantity Counted**: {quantity_counted}\n"
+                f"{f'**Bin**: {bin_location}' if bin_location else ''}\n"
+                f"{f'**Lot**: {lot}' if lot else ''}\n"
+                f"{f'**Serial**: {serial}' if serial else ''}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Stock Take Capture Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_stock_take_confirm")
+    async def phx_stock_take_confirm(
+        warehouse: str,
+        stock_code: str = "",
+        post_variance: str = "Y",
+    ) -> str:
+        """Confirm and finalize stock take in SYSPRO.
+
+        Finalizes the stock take and posts variances to inventory.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            warehouse: Warehouse code.
+            stock_code: Specific stock code to confirm (optional, confirms all if empty).
+            post_variance: Post variance adjustments to inventory (Y/N, default Y).
+
+        Returns:
+            Confirmation result with variance summary, or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.stock_take_confirm(
+                warehouse=warehouse,
+                stock_code=stock_code,
+                post_variance=post_variance,
+            )
+            scope = stock_code if stock_code else "All items"
+            return (
+                f"# Stock Take Confirmed\n\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Scope**: {scope}\n"
+                f"**Variances Posted**: {post_variance}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Stock Take Confirmation Failed\n\n"
+                f"Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_stock_take_cancel")
+    async def phx_stock_take_cancel(
+        warehouse: str,
+        stock_code: str = "",
+    ) -> str:
+        """Cancel active stock take in SYSPRO.
+
+        Cancels an in-progress stock take without posting variances.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            warehouse: Warehouse code.
+            stock_code: Specific stock code to cancel (optional, cancels all if empty).
+
+        Returns:
+            Cancellation result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.stock_take_cancel(
+                warehouse=warehouse,
+                stock_code=stock_code,
+            )
+            scope = stock_code if stock_code else "All items"
+            return (
+                f"# Stock Take Cancelled\n\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Scope**: {scope}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Stock Take Cancellation Failed\n\n"
+                f"Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_stock_take_query")
+    async def phx_stock_take_query(
+        warehouse: str,
+        stock_code: str = "",
+        include_counted: str = "Y",
+        include_uncounted: str = "Y",
+    ) -> str:
+        """Query stock take status and details in SYSPRO.
+
+        Retrieves current stock take information including counts and variances.
+        This is a READ operation.
+
+        Args:
+            warehouse: Warehouse code.
+            stock_code: Filter by stock code (optional).
+            include_counted: Include items already counted (Y/N, default Y).
+            include_uncounted: Include items not yet counted (Y/N, default Y).
+
+        Returns:
+            Stock take details with item statuses and variances, or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.stock_take_query(
+                warehouse=warehouse,
+                stock_code=stock_code,
+                include_counted=include_counted,
+                include_uncounted=include_uncounted,
+            )
+            return _format_response(result, f"Stock Take Status: {warehouse}")
+        except PhxValidationError as e:
+            return (
+                f"# Stock Take Query Failed\n\n"
+                f"Warehouse: {warehouse}\n\n"
                 f"{_format_error(e)}"
             )
         except PhxRateLimitError as e:

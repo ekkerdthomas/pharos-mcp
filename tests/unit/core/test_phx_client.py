@@ -761,3 +761,117 @@ class TestPhxClientInventoryMovements:
             call_args = mock_request.call_args
             # Verify the correct endpoint is used (fixed from /api/GenericBo/call)
             assert "/api/BusinessObject/call" in call_args.args[1]
+
+
+class TestPhxClientStockTake:
+    """Test PhxClient stock take methods."""
+
+    @pytest.fixture
+    def client(self) -> PhxClient:
+        """Create a configured PhxClient for testing."""
+        return PhxClient(
+            base_url="http://test.local:5000",
+            operator="OP",
+            company_id="CO",
+        )
+
+    @pytest.mark.asyncio
+    async def test_stock_take_select(self, client: PhxClient) -> None:
+        """stock_take_select should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True, "itemsSelected": 50}
+
+            result = await client.stock_take_select(
+                warehouse="WH1",
+                stock_code="A%",
+                planner="PLAN1",
+                include_zero_qty="Y",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvStockTake/post-select" in call_args.args[1]
+            data = call_args.args[2]
+            assert data["warehouse"] == "WH1"
+            assert data["stockCode"] == "A%"
+            assert data["planner"] == "PLAN1"
+            assert data["includeZeroQty"] == "Y"
+
+    @pytest.mark.asyncio
+    async def test_stock_take_capture(self, client: PhxClient) -> None:
+        """stock_take_capture should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.stock_take_capture(
+                warehouse="WH1",
+                stock_code="TEST001",
+                quantity_counted=100.0,
+                bin_location="BIN1",
+                lot="LOT001",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvStockTake/post-capture" in call_args.args[1]
+            data = call_args.args[2]
+            assert data["warehouse"] == "WH1"
+            assert data["stockCode"] == "TEST001"
+            assert data["quantityCounted"] == "100.0"
+            assert data["bin"] == "BIN1"
+            assert data["lot"] == "LOT001"
+
+    @pytest.mark.asyncio
+    async def test_stock_take_confirm(self, client: PhxClient) -> None:
+        """stock_take_confirm should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True, "variancesPosted": 5}
+
+            result = await client.stock_take_confirm(
+                warehouse="WH1",
+                stock_code="TEST001",
+                post_variance="Y",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvStockTake/post-confirm" in call_args.args[1]
+            data = call_args.args[2]
+            assert data["warehouse"] == "WH1"
+            assert data["stockCode"] == "TEST001"
+            assert data["postVariance"] == "Y"
+
+    @pytest.mark.asyncio
+    async def test_stock_take_cancel(self, client: PhxClient) -> None:
+        """stock_take_cancel should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.stock_take_cancel(
+                warehouse="WH1",
+                stock_code="TEST001",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvStockTake/post-cancel" in call_args.args[1]
+            data = call_args.args[2]
+            assert data["warehouse"] == "WH1"
+            assert data["stockCode"] == "TEST001"
+
+    @pytest.mark.asyncio
+    async def test_stock_take_query(self, client: PhxClient) -> None:
+        """stock_take_query should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"items": [], "totalItems": 0}
+
+            result = await client.stock_take_query(
+                warehouse="WH1",
+                stock_code="TEST%",
+                include_counted="Y",
+                include_uncounted="N",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvStockTake/query" in call_args.args[1]
+            data = call_args.args[2]
+            assert data["warehouse"] == "WH1"
+            assert data["stockCode"] == "TEST%"
+            assert data["includeCounted"] == "Y"
+            assert data["includeUncounted"] == "N"
