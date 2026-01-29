@@ -10,7 +10,19 @@
       "Bash(cmd /c \"set PYTHONPATH=src && .venv\\\\Scripts\\\\python -m pharos_mcp.server --help\")",
       "Bash($env:PYTHONPATH='src')",
       "Bash(.venv/Scripts/python:*)",
-      "Bash(PYTHONPATH=src .venv/Scripts/python:*)"
+      "Bash(PYTHONPATH=src .venv/Scripts/python:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(python:*)",
+      "Bash(PYTHONPATH=src python:*)",
+      "Bash(PYTHONPATH=src PHAROS_PROTOCOL_LOG=false python:*)",
+      "Bash(PYTHONPATH=src PHAROS_PROTOCOL_LOG_DIR=/tmp/test-logs python:*)",
+      "Bash(PYTHONPATH=src timeout 3 python:*)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "pharos"
+  ]
 }

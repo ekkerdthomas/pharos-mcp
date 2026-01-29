@@ -7,8 +7,10 @@ tools and resources for SYSPRO database integration.
 
 import logging
 
+import anyio
 from mcp.server.fastmcp import FastMCP
 
+from .core.protocol_logger import logged_stdio_server
 from .resources import register_schema_resources
 from .tools import (
     register_analytics_tools,
@@ -75,6 +77,16 @@ def create_server() -> FastMCP:
     return mcp
 
 
+async def run_stdio_with_logging() -> None:
+    """Run the server using stdio transport with protocol logging."""
+    async with logged_stdio_server() as (read_stream, write_stream):
+        await mcp._mcp_server.run(
+            read_stream,
+            write_stream,
+            mcp._mcp_server.create_initialization_options(),
+        )
+
+
 def run(transport: str = "stdio", host: str = "0.0.0.0", port: int = 8080) -> None:
     """Entry point for running the server.
 
@@ -94,7 +106,7 @@ def run(transport: str = "stdio", host: str = "0.0.0.0", port: int = 8080) -> No
         app = mcp.sse_app()
         uvicorn.run(app, host=host, port=port)
     else:
-        mcp.run()
+        anyio.run(run_stdio_with_logging)
 
 
 def main():
