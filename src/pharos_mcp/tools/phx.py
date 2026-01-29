@@ -13,6 +13,14 @@ Tools:
 - phx_post_material: Issue materials
 - phx_approve_requisition: Approve PRs
 - phx_call_business_object: Generic BO gateway
+- phx_warehouse_transfer: Immediate warehouse transfer
+- phx_bin_transfer: Bin-to-bin transfer
+- phx_inventory_adjustment: Adjust inventory quantities
+- phx_expense_issue: Issue stock as expense
+- phx_git_transfer_out: Start GIT transfer
+- phx_git_transfer_in: Receive GIT transfer
+- phx_transfer_out: Start two-step transfer
+- phx_transfer_in: Complete two-step transfer
 """
 
 import json
@@ -566,6 +574,510 @@ def register_phx_tools(mcp: FastMCP) -> None:
             return (
                 f"# Business Object Call Failed\n\n"
                 f"Method: {bo_method}, BO: {business_object}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    # === Inventory Movement Tools ===
+
+    @mcp.tool()
+    @audit_tool_call("phx_warehouse_transfer")
+    async def phx_warehouse_transfer(
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        to_bin: str = "",
+        reference: str = "",
+    ) -> str:
+        """Immediate warehouse transfer in SYSPRO.
+
+        Transfers stock directly between warehouses in a single transaction.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to transfer.
+            from_warehouse: Source warehouse code.
+            to_warehouse: Destination warehouse code.
+            quantity: Quantity to transfer.
+            notation: Required transaction notation/reason (SYSPRO requires this).
+            from_bin: Source bin location (optional).
+            to_bin: Destination bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_immediate_warehouse_transfer(
+                stock_code=stock_code,
+                from_warehouse=from_warehouse,
+                to_warehouse=to_warehouse,
+                quantity=quantity,
+                notation=notation,
+                from_bin=from_bin,
+                to_bin=to_bin,
+                reference=reference,
+            )
+            return (
+                f"# Warehouse Transfer Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**From**: {from_warehouse}{f' (Bin: {from_bin})' if from_bin else ''}\n"
+                f"**To**: {to_warehouse}{f' (Bin: {to_bin})' if to_bin else ''}\n"
+                f"**Quantity**: {quantity}\n"
+                f"**Notation**: {notation}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Warehouse Transfer Failed\n\n"
+                f"Stock: {stock_code}, From: {from_warehouse}, To: {to_warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_bin_transfer")
+    async def phx_bin_transfer(
+        stock_code: str,
+        warehouse: str,
+        from_bin: str,
+        to_bin: str,
+        quantity: float,
+        notation: str,
+        reference: str = "",
+    ) -> str:
+        """Transfer stock between bins in the same warehouse.
+
+        Moves stock from one bin location to another within a single warehouse.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to transfer.
+            warehouse: Warehouse code.
+            from_bin: Source bin location.
+            to_bin: Destination bin location.
+            quantity: Quantity to transfer.
+            notation: Required transaction notation/reason.
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_bin_transfer(
+                stock_code=stock_code,
+                warehouse=warehouse,
+                from_bin=from_bin,
+                to_bin=to_bin,
+                quantity=quantity,
+                notation=notation,
+                reference=reference,
+            )
+            return (
+                f"# Bin Transfer Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**From Bin**: {from_bin}\n"
+                f"**To Bin**: {to_bin}\n"
+                f"**Quantity**: {quantity}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Bin Transfer Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_inventory_adjustment")
+    async def phx_inventory_adjustment(
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+        unit_cost: float | None = None,
+    ) -> str:
+        """Adjust inventory quantity in SYSPRO.
+
+        Adjusts stock quantity up (positive) or down (negative).
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to adjust.
+            warehouse: Warehouse code.
+            quantity: Adjustment quantity (positive to add, negative to remove).
+            notation: Required transaction notation/reason.
+            bin_location: Bin location (optional).
+            reference: Transaction reference (optional).
+            unit_cost: Unit cost override (optional, uses standard cost if not specified).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_inventory_adjustment(
+                stock_code=stock_code,
+                warehouse=warehouse,
+                quantity=quantity,
+                notation=notation,
+                bin_location=bin_location,
+                reference=reference,
+                unit_cost=unit_cost,
+            )
+            adj_type = "Increase" if quantity > 0 else "Decrease"
+            return (
+                f"# Inventory Adjustment Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Adjustment**: {adj_type} by {abs(quantity)}\n"
+                f"**Notation**: {notation}\n"
+                f"{f'**Bin**: {bin_location}' if bin_location else ''}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Inventory Adjustment Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}, Qty: {quantity}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_expense_issue")
+    async def phx_expense_issue(
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        ledger_code: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> str:
+        """Issue stock as an expense in SYSPRO.
+
+        Issues stock from inventory and expenses it to a GL ledger code.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to issue.
+            warehouse: Source warehouse code.
+            quantity: Quantity to issue.
+            notation: Required transaction notation/reason.
+            ledger_code: GL ledger code to expense to.
+            bin_location: Source bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_expense_issue(
+                stock_code=stock_code,
+                warehouse=warehouse,
+                quantity=quantity,
+                notation=notation,
+                ledger_code=ledger_code,
+                bin_location=bin_location,
+                reference=reference,
+            )
+            return (
+                f"# Expense Issue Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Quantity Issued**: {quantity}\n"
+                f"**Ledger Code**: {ledger_code}\n"
+                f"**Notation**: {notation}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Expense Issue Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}, Ledger: {ledger_code}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_git_transfer_out")
+    async def phx_git_transfer_out(
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        reference: str = "",
+    ) -> str:
+        """Start a goods-in-transit (GIT) transfer out in SYSPRO.
+
+        First step of a two-step GIT transfer. Creates a GIT record and removes
+        stock from the source warehouse. Use phx_git_transfer_in to complete.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to transfer.
+            from_warehouse: Source warehouse code.
+            to_warehouse: Destination warehouse code.
+            quantity: Quantity to transfer.
+            notation: Required transaction notation/reason.
+            from_bin: Source bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result with GIT reference, or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_git_transfer_out(
+                stock_code=stock_code,
+                from_warehouse=from_warehouse,
+                to_warehouse=to_warehouse,
+                quantity=quantity,
+                notation=notation,
+                from_bin=from_bin,
+                reference=reference,
+            )
+            return (
+                f"# GIT Transfer Out Initiated\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**From Warehouse**: {from_warehouse}\n"
+                f"**To Warehouse**: {to_warehouse}\n"
+                f"**Quantity**: {quantity}\n\n"
+                f"Use `phx_git_transfer_in` to receive this transfer.\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# GIT Transfer Out Failed\n\n"
+                f"Stock: {stock_code}, From: {from_warehouse}, To: {to_warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_git_transfer_in")
+    async def phx_git_transfer_in(
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> str:
+        """Receive a goods-in-transit (GIT) transfer in SYSPRO.
+
+        Second step of a two-step GIT transfer. Receives inventory from GIT
+        into the destination warehouse.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code being received.
+            warehouse: Receiving warehouse code.
+            quantity: Quantity to receive.
+            notation: Required transaction notation/reason.
+            bin_location: Destination bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_git_transfer_in(
+                stock_code=stock_code,
+                warehouse=warehouse,
+                quantity=quantity,
+                notation=notation,
+                bin_location=bin_location,
+                reference=reference,
+            )
+            return (
+                f"# GIT Transfer In Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Quantity Received**: {quantity}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# GIT Transfer In Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_transfer_out")
+    async def phx_transfer_out(
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        reference: str = "",
+    ) -> str:
+        """Start a two-step warehouse transfer out in SYSPRO.
+
+        First step of a non-immediate warehouse transfer. Creates a transfer
+        record. Use phx_transfer_in to complete the receipt.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code to transfer.
+            from_warehouse: Source warehouse code.
+            to_warehouse: Destination warehouse code.
+            quantity: Quantity to transfer.
+            notation: Required transaction notation/reason.
+            from_bin: Source bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result with transfer reference, or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_warehouse_transfer_out(
+                stock_code=stock_code,
+                from_warehouse=from_warehouse,
+                to_warehouse=to_warehouse,
+                quantity=quantity,
+                notation=notation,
+                from_bin=from_bin,
+                reference=reference,
+            )
+            return (
+                f"# Transfer Out Initiated\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**From Warehouse**: {from_warehouse}\n"
+                f"**To Warehouse**: {to_warehouse}\n"
+                f"**Quantity**: {quantity}\n\n"
+                f"Use `phx_transfer_in` to complete this transfer.\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Transfer Out Failed\n\n"
+                f"Stock: {stock_code}, From: {from_warehouse}, To: {to_warehouse}\n\n"
+                f"{_format_error(e)}"
+            )
+        except PhxRateLimitError as e:
+            return f"# Rate Limit Exceeded\n\n{e}\n\nWait and retry."
+        except PhxError as e:
+            return _format_error(e)
+
+    @mcp.tool()
+    @audit_tool_call("phx_transfer_in")
+    async def phx_transfer_in(
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> str:
+        """Complete a two-step warehouse transfer in SYSPRO.
+
+        Second step of a non-immediate warehouse transfer. Receives inventory
+        into the destination warehouse.
+        This is a WRITE operation that modifies SYSPRO data.
+
+        Args:
+            stock_code: SYSPRO stock code being received.
+            warehouse: Receiving warehouse code.
+            quantity: Quantity to receive.
+            notation: Required transaction notation/reason.
+            bin_location: Destination bin location (optional).
+            reference: Transaction reference (optional).
+
+        Returns:
+            Transaction result or error message.
+        """
+        client = get_phx_client()
+
+        if not client.is_configured:
+            return "Error: PhX client not configured. Run phx_test_connection for details."
+
+        try:
+            result = await client.post_warehouse_transfer_in(
+                stock_code=stock_code,
+                warehouse=warehouse,
+                quantity=quantity,
+                notation=notation,
+                bin_location=bin_location,
+                reference=reference,
+            )
+            return (
+                f"# Transfer In Completed\n\n"
+                f"**Stock Code**: {stock_code}\n"
+                f"**Warehouse**: {warehouse}\n"
+                f"**Quantity Received**: {quantity}\n\n"
+                f"```json\n{json.dumps(result, indent=2)}\n```"
+            )
+        except PhxValidationError as e:
+            return (
+                f"# Transfer In Failed\n\n"
+                f"Stock: {stock_code}, Warehouse: {warehouse}\n\n"
                 f"{_format_error(e)}"
             )
         except PhxRateLimitError as e:

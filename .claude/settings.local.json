@@ -19,7 +19,14 @@
       "Bash(PYTHONPATH=src timeout 3 python:*)",
       "Bash(git pull:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:syspro-api.phygital-tech.ai)",
+      "Bash(.venv\\\\Scripts\\\\python -m pytest:*)",
+      "Bash(.venv/Scripts/python.exe -m pytest:*)",
+      "Bash(.venv/Scripts/pip.exe install:*)",
+      "Bash(PYTHONPATH=src .venv/Scripts/python.exe -m pytest:*)",
+      "Bash(PYTHONPATH=src .venv/Scripts/python.exe:*)",
+      "Bash(.venv/Scripts/pip.exe:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

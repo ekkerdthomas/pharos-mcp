@@ -587,7 +587,331 @@ class PhxClient:
             "xmlIn": xml_in,
             "xmlParameters": xml_parameters,
         }
-        return await self._request("POST", "/api/GenericBo/call", data)
+        return await self._request("POST", "/api/BusinessObject/call", data)
+
+    # === Inventory Movement Methods ===
+
+    async def post_immediate_warehouse_transfer(
+        self,
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        to_bin: str = "",
+        reference: str = "",
+        unit_of_measure: str = "",
+    ) -> dict[str, Any]:
+        """Immediate warehouse transfer (single transaction).
+
+        Args:
+            stock_code: SYSPRO stock code
+            from_warehouse: Source warehouse code
+            to_warehouse: Destination warehouse code
+            quantity: Quantity to transfer
+            notation: Required transaction notation/reason
+            from_bin: Source bin location (optional)
+            to_bin: Destination bin location (optional)
+            reference: Transaction reference (optional)
+            unit_of_measure: Unit of measure (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "fromWarehouse": from_warehouse,
+            "toWarehouse": to_warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if from_bin:
+            item["fromBin"] = from_bin
+        if to_bin:
+            item["toBin"] = to_bin
+        if reference:
+            item["reference"] = reference
+        if unit_of_measure:
+            item["unitOfMeasure"] = unit_of_measure
+        return await self._request(
+            "POST", "/api/InvMovements/post-immediate-warehouse-transfer", {"items": [item]}
+        )
+
+    async def post_bin_transfer(
+        self,
+        stock_code: str,
+        warehouse: str,
+        from_bin: str,
+        to_bin: str,
+        quantity: float,
+        notation: str,
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Transfer stock between bins in the same warehouse.
+
+        Args:
+            stock_code: SYSPRO stock code
+            warehouse: Warehouse code
+            from_bin: Source bin location
+            to_bin: Destination bin location
+            quantity: Quantity to transfer
+            notation: Required transaction notation/reason
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "warehouse": warehouse,
+            "fromBin": from_bin,
+            "toBin": to_bin,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-bin-transfer", {"items": [item]}
+        )
+
+    async def post_inventory_adjustment(
+        self,
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+        unit_cost: float | None = None,
+    ) -> dict[str, Any]:
+        """Adjust inventory quantity (positive or negative).
+
+        Args:
+            stock_code: SYSPRO stock code
+            warehouse: Warehouse code
+            quantity: Adjustment quantity (positive to add, negative to remove)
+            notation: Required transaction notation/reason
+            bin_location: Bin location (optional)
+            reference: Transaction reference (optional)
+            unit_cost: Unit cost override (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "warehouse": warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if bin_location:
+            item["bin"] = bin_location
+        if reference:
+            item["reference"] = reference
+        if unit_cost is not None:
+            item["unitCost"] = str(unit_cost)
+        return await self._request(
+            "POST", "/api/InvMovements/post-inventory-adjustment", {"items": [item]}
+        )
+
+    async def post_expense_issue(
+        self,
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        ledger_code: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Issue stock as an expense.
+
+        Args:
+            stock_code: SYSPRO stock code
+            warehouse: Source warehouse code
+            quantity: Quantity to issue
+            notation: Required transaction notation/reason
+            ledger_code: GL ledger code to expense to
+            bin_location: Source bin location (optional)
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "warehouse": warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+            "ledgerCode": ledger_code,
+        }
+        if bin_location:
+            item["bin"] = bin_location
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-expense-issue", {"items": [item]}
+        )
+
+    async def post_git_transfer_out(
+        self,
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Initiate goods-in-transit transfer out.
+
+        First step of a two-step GIT transfer. Creates GIT record.
+
+        Args:
+            stock_code: SYSPRO stock code
+            from_warehouse: Source warehouse code
+            to_warehouse: Destination warehouse code
+            quantity: Quantity to transfer
+            notation: Required transaction notation/reason
+            from_bin: Source bin location (optional)
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with GIT reference
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "fromWarehouse": from_warehouse,
+            "toWarehouse": to_warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if from_bin:
+            item["fromBin"] = from_bin
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-git-warehouse-transfer-out", {"items": [item]}
+        )
+
+    async def post_git_transfer_in(
+        self,
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Receive goods-in-transit transfer.
+
+        Second step of a two-step GIT transfer. Receives GIT inventory.
+
+        Args:
+            stock_code: SYSPRO stock code
+            warehouse: Receiving warehouse code
+            quantity: Quantity to receive
+            notation: Required transaction notation/reason
+            bin_location: Destination bin location (optional)
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "warehouse": warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if bin_location:
+            item["bin"] = bin_location
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-git-warehouse-transfer-in", {"items": [item]}
+        )
+
+    async def post_warehouse_transfer_out(
+        self,
+        stock_code: str,
+        from_warehouse: str,
+        to_warehouse: str,
+        quantity: float,
+        notation: str,
+        from_bin: str = "",
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Begin non-immediate warehouse transfer (creates GIT record).
+
+        First step of a two-step warehouse transfer.
+
+        Args:
+            stock_code: SYSPRO stock code
+            from_warehouse: Source warehouse code
+            to_warehouse: Destination warehouse code
+            quantity: Quantity to transfer
+            notation: Required transaction notation/reason
+            from_bin: Source bin location (optional)
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with transfer reference
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "fromWarehouse": from_warehouse,
+            "toWarehouse": to_warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if from_bin:
+            item["fromBin"] = from_bin
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-warehouse-transfer-out", {"items": [item]}
+        )
+
+    async def post_warehouse_transfer_in(
+        self,
+        stock_code: str,
+        warehouse: str,
+        quantity: float,
+        notation: str,
+        bin_location: str = "",
+        reference: str = "",
+    ) -> dict[str, Any]:
+        """Complete non-immediate warehouse transfer.
+
+        Second step of a two-step warehouse transfer.
+
+        Args:
+            stock_code: SYSPRO stock code
+            warehouse: Receiving warehouse code
+            quantity: Quantity to receive
+            notation: Required transaction notation/reason
+            bin_location: Destination bin location (optional)
+            reference: Transaction reference (optional)
+
+        Returns:
+            Transaction result with journal information
+        """
+        item: dict[str, Any] = {
+            "stockCode": stock_code,
+            "warehouse": warehouse,
+            "quantity": str(quantity),
+            "notation": notation,
+        }
+        if bin_location:
+            item["bin"] = bin_location
+        if reference:
+            item["reference"] = reference
+        return await self._request(
+            "POST", "/api/InvMovements/post-warehouse-transfer-in", {"items": [item]}
+        )
 
 
 # Global client instance

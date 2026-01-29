@@ -491,3 +491,401 @@ class TestPhxCallBusinessObject:
                 xml_in="<Query><Key><StockCode>TEST001</StockCode></Key></Query>",
                 xml_parameters="",
             )
+
+
+class TestPhxWarehouseTransfer:
+    """Test phx_warehouse_transfer tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_immediate_warehouse_transfer = AsyncMock(
+            return_value={"success": True, "journal": "TRF001"}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_warehouse_transfer"](
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=10.0,
+                notation="Test transfer",
+            )
+
+            assert "Completed" in result
+            assert "TEST001" in result
+            assert "WH1" in result
+            assert "WH2" in result
+            mock_client.post_immediate_warehouse_transfer.assert_called_once()
+
+
+class TestPhxBinTransfer:
+    """Test phx_bin_transfer tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_bin_transfer = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_bin_transfer"](
+                stock_code="TEST001",
+                warehouse="WH1",
+                from_bin="BIN1",
+                to_bin="BIN2",
+                quantity=5.0,
+                notation="Bin transfer",
+            )
+
+            assert "Completed" in result
+            assert "BIN1" in result
+            assert "BIN2" in result
+
+
+class TestPhxInventoryAdjustment:
+    """Test phx_inventory_adjustment tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_adjustment(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_inventory_adjustment = AsyncMock(
+            return_value={"success": True, "journal": "ADJ001"}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_inventory_adjustment"](
+                stock_code="TEST001",
+                warehouse="WH1",
+                quantity=-5.0,
+                notation="Cycle count",
+            )
+
+            assert "Completed" in result
+            assert "Decrease" in result  # Negative quantity
+            assert "5" in result
+
+    @pytest.mark.asyncio
+    async def test_positive_adjustment(self, mock_client: MagicMock) -> None:
+        """Should show Increase for positive quantity."""
+        mock_client.post_inventory_adjustment = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_inventory_adjustment"](
+                stock_code="TEST001",
+                warehouse="WH1",
+                quantity=10.0,
+                notation="Found stock",
+            )
+
+            assert "Increase" in result
+
+
+class TestPhxExpenseIssue:
+    """Test phx_expense_issue tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_issue(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_expense_issue = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_expense_issue"](
+                stock_code="TEST001",
+                warehouse="WH1",
+                quantity=3.0,
+                notation="Expense issue",
+                ledger_code="6100-000",
+            )
+
+            assert "Completed" in result
+            assert "6100-000" in result
+
+
+class TestPhxGitTransferOut:
+    """Test phx_git_transfer_out tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message with follow-up instructions."""
+        mock_client.post_git_transfer_out = AsyncMock(
+            return_value={"success": True, "gitReference": "GIT001"}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_git_transfer_out"](
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=20.0,
+                notation="GIT transfer",
+            )
+
+            assert "Initiated" in result
+            assert "phx_git_transfer_in" in result  # Follow-up instructions
+
+
+class TestPhxGitTransferIn:
+    """Test phx_git_transfer_in tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_git_transfer_in = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_git_transfer_in"](
+                stock_code="TEST001",
+                warehouse="WH2",
+                quantity=20.0,
+                notation="GIT receive",
+            )
+
+            assert "Completed" in result
+
+
+class TestPhxTransferOut:
+    """Test phx_transfer_out tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message with follow-up instructions."""
+        mock_client.post_warehouse_transfer_out = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_transfer_out"](
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=15.0,
+                notation="Transfer out",
+            )
+
+            assert "Initiated" in result
+            assert "phx_transfer_in" in result  # Follow-up instructions
+
+
+class TestPhxTransferIn:
+    """Test phx_transfer_in tool."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock PhxClient."""
+        client = MagicMock(spec=PhxClient)
+        client.is_configured = True
+        return client
+
+    @pytest.mark.asyncio
+    async def test_successful_transfer(self, mock_client: MagicMock) -> None:
+        """Should return success message."""
+        mock_client.post_warehouse_transfer_in = AsyncMock(
+            return_value={"success": True}
+        )
+
+        with patch("pharos_mcp.tools.phx.get_phx_client", return_value=mock_client):
+            from pharos_mcp.tools.phx import register_phx_tools
+
+            mock_mcp = MagicMock()
+            tools: dict[str, Any] = {}
+
+            def capture_tool():
+                def decorator(func):
+                    tools[func.__name__] = func
+                    return func
+                return decorator
+
+            mock_mcp.tool = capture_tool
+            register_phx_tools(mock_mcp)
+
+            result = await tools["phx_transfer_in"](
+                stock_code="TEST001",
+                warehouse="WH2",
+                quantity=15.0,
+                notation="Transfer in",
+            )
+
+            assert "Completed" in result
+
+
+class TestPhxToolsRegistrationCount:
+    """Test that all PhX tools are registered."""
+
+    def test_all_tools_registered(self) -> None:
+        """register_phx_tools should add all 16+ tools to MCP server."""
+        mock_mcp = MagicMock()
+        mock_mcp.tool = MagicMock(return_value=lambda f: f)
+
+        register_phx_tools(mock_mcp)
+
+        # We now have 8 original tools + 8 new inventory movement tools = 16
+        assert mock_mcp.tool.call_count >= 16

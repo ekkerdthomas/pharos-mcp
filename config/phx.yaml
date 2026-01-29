@@ -34,5 +34,15 @@ phx:
     approve_requisition: /api/RequisitionBo/approve
     clear_requisition: /api/RequisitionBo/clear
 
-    # Inventory adjustments
-    inventory_adjustment: /api/InventoryBo/adjustment
+    # Inventory movements
+    immediate_warehouse_transfer: /api/InvMovements/post-immediate-warehouse-transfer
+    bin_transfer: /api/InvMovements/post-bin-transfer
+    inventory_adjustment: /api/InvMovements/post-inventory-adjustment
+    expense_issue: /api/InvMovements/post-expense-issue
+    git_transfer_out: /api/InvMovements/post-git-warehouse-transfer-out
+    git_transfer_in: /api/InvMovements/post-git-warehouse-transfer-in
+    warehouse_transfer_out: /api/InvMovements/post-warehouse-transfer-out
+    warehouse_transfer_in: /api/InvMovements/post-warehouse-transfer-in
+
+    # Generic Business Object
+    business_object: /api/BusinessObject/call

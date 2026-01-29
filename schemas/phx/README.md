@@ -1,77 +1,51 @@
-# PhX SYSPRO Business Object Schemas
+# PhX API Documentation
 
-XML Schema Definition (XSD) files for SYSPRO business objects used by PhX API tools.
+Live OpenAPI/Swagger documentation fetched from the PhX REST API.
 
-## Schema Naming Convention
+## MCP Resources
 
-- `{BO}.XSD` - Parameters schema (options, filters, settings)
-- `{BO}DOC.XSD` - Document schema (data payload)
+Access API documentation via MCP resources (fetched live from PHX_URL):
 
-## Query Business Objects
+- `phx://api` - Overview of all endpoints grouped by category
+- `phx://api/endpoint/{path}` - Detailed docs for specific endpoint
 
-| BO Code | Description | Schemas |
-|---------|-------------|---------|
-| INVQRY | Inventory Query | INVQRY.XSD |
-| WIPQRY | WIP Job Query | WIPQRY.XSD |
-| WIPQVA | WIP Variance/Tracking Query | WIPQVA.XSD |
-| WIPQ40 | WIP Multi-level Job Query | WIPQ40.XSD |
-| PORQRQ | Requisition Query | PORQRQ.XSD |
-| INVQGD | Goods In Transit Query | INVQGD.XSD |
+### Examples
 
-## Transaction Business Objects
+```
+# Get API overview
+phx://api
 
-| BO Code | Description | Schemas |
-|---------|-------------|---------|
-| WIPTLP | Post Labour | WIPTLP.XSD, WIPTLPDOC.XSD |
-| WIPTJR | Post Job Receipt | WIPTJR.XSD, WIPTJRDOC.XSD |
-| WIPTMI | Post Material Issue | WIPTMI.XSD, WIPTMIDOC.XSD |
-| PORTRA | Requisition Approve/Clear | PORTRA.XSD, PORTRADOC.XSD |
-| PORTRR | Requisition Route | PORTRR.XSD, PORTRRDOC.XSD |
+# Get inventory query endpoint docs (use dashes instead of slashes)
+phx://api/endpoint/api-QueryBo-inventory
 
-## Inventory Movement Business Objects
-
-| BO Code | Description | Schemas |
-|---------|-------------|---------|
-| INVTMA | Inventory Adjustment | INVTMA.XSD, INVTMADOC.XSD |
-| INVTMO | Warehouse Transfer Out | INVTMO.XSD, INVTMODOC.XSD |
-| INVTMI | Warehouse Transfer In | INVTMI.XSD, INVTMIDOC.XSD |
-| INVTMB | Bin Transfer | INVTMB.XSD, INVTMBDOC.XSD |
-| INVTMT | GIT Transfer Out | INVTMT.XSD, INVTMTDOC.XSD |
-| INVTMN | GIT Transfer In | INVTMN.XSD, INVTMNDOC.XSD |
-
-## Usage with phx_call_business_object
-
-When using the generic `phx_call_business_object` tool, refer to these schemas for:
-- Required vs optional elements
-- Valid values for option fields
-- Data types and field lengths
-
-Example for WIPTLP (Post Labour):
-```xml
-<!-- Parameters (WIPTLP.XSD) -->
-<PostLabour>
-  <Parameters>
-    <TransactionDate></TransactionDate>
-    <IgnoreWarnings>N</IgnoreWarnings>
-    <ApplyIfEntireDocumentValid>Y</ApplyIfEntireDocumentValid>
-    <ValidateOnly>N</ValidateOnly>
-  </Parameters>
-</PostLabour>
-
-<!-- Document (WIPTLPDOC.XSD) -->
-<PostLabour>
-  <Item>
-    <Journal>J001</Journal>
-    <LOperation>0010</LOperation>
-    <LWorkCentre>WC01</LWorkCentre>
-    <LRunTimeHours>2.5</LRunTimeHours>
-    <LQtyComplete>10</LQtyComplete>
-    <OperCompleted>N</OperCompleted>
-  </Item>
-</PostLabour>
+# Get labour posting endpoint docs
+phx://api/endpoint/api-WipTransaction-post-labour
 ```
 
-## Source
+## Configuration
 
-These schemas are extracted from SYSPRO and maintained in the PhX project.
-Original location: `PhX/Schemas/`
+Requires `PHX_URL` environment variable pointing to PhX API:
+```
+PHX_URL=https://syspro-api.phygital-tech.ai
+```
+
+## Key Endpoint Categories
+
+### Query (BO Call) - Read-only, DirectAuth
+- `/api/QueryBo/inventory` - Query stock item
+- `/api/QueryBo/wip-job` - Query WIP job details
+- `/api/QueryBo/wip-tracking` - Query job variances
+- `/api/QueryBo/requisition` - Query requisitions
+
+### WIP Transactions (BO Call) - Write, DirectAuth
+- `/api/WipTransaction/post-labour` - Post labour to job
+- `/api/WipTransaction/post-job-receipt` - Complete job receipt
+- `/api/WipTransaction/post-material` - Issue material to job
+
+### Requisition (BO Call) - Write, DirectAuth
+- `/api/RequisitionBo/approve` - Approve requisition
+- `/api/RequisitionBo/route` - Route requisition
+
+## Caching
+
+Swagger spec is cached for 5 minutes to reduce API calls.

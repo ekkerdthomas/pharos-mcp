@@ -5,12 +5,98 @@ Resources provide context that MCP clients can load to understand
 the SYSPRO database structure without making individual tool calls.
 """
 
-from pathlib import Path
+import logging
+import os
+import time
+from typing import Any
+
+import httpx
 
 from mcp.server.fastmcp import FastMCP
 
-# Path to PhX schemas
-SCHEMAS_DIR = Path(__file__).parent.parent.parent.parent / "schemas" / "phx"
+logger = logging.getLogger(__name__)
+
+# Cache for swagger spec
+_swagger_cache: dict[str, Any] | None = None
+_swagger_cache_time: float = 0
+_SWAGGER_CACHE_TTL = 300  # 5 minutes
+
+
+async def _load_swagger() -> dict[str, Any] | None:
+    """Fetch swagger.json from PhX API with caching."""
+    global _swagger_cache, _swagger_cache_time
+
+    # Return cached version if still valid
+    if _swagger_cache and (time.time() - _swagger_cache_time) < _SWAGGER_CACHE_TTL:
+        return _swagger_cache
+
+    # Get PhX URL from environment
+    phx_url = os.getenv("PHX_URL", "").rstrip("/")
+    if not phx_url:
+        logger.warning("PHX_URL not configured, cannot fetch swagger.json")
+        return None
+
+    swagger_url = f"{phx_url}/swagger/v1/swagger.json"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(swagger_url)
+            response.raise_for_status()
+            _swagger_cache = response.json()
+            _swagger_cache_time = time.time()
+            logger.info(f"Fetched swagger.json from {swagger_url}")
+            return _swagger_cache
+    except Exception as e:
+        logger.error(f"Failed to fetch swagger.json from {swagger_url}: {e}")
+        # Return stale cache if available
+        if _swagger_cache:
+            logger.info("Using stale swagger cache")
+            return _swagger_cache
+        return None
+
+
+def _resolve_ref(swagger: dict[str, Any], ref: str) -> dict[str, Any]:
+    """Resolve a $ref pointer in the swagger spec."""
+    if not ref.startswith("#/"):
+        return {}
+    parts = ref[2:].split("/")
+    obj = swagger
+    for part in parts:
+        obj = obj.get(part, {})
+    return obj
+
+
+def _format_schema(swagger: dict[str, Any], schema: dict[str, Any], indent: int = 0) -> str:
+    """Format a schema object as readable text."""
+    if "$ref" in schema:
+        schema = _resolve_ref(swagger, schema["$ref"])
+
+    lines = []
+    prefix = "  " * indent
+
+    if schema.get("type") == "object":
+        props = schema.get("properties", {})
+        required = set(schema.get("required", []))
+        for name, prop in props.items():
+            prop_type = prop.get("type", "object")
+            if "$ref" in prop:
+                ref_name = prop["$ref"].split("/")[-1]
+                prop_type = ref_name
+            req_marker = "*" if name in required else ""
+            desc = prop.get("description", "")
+            if desc:
+                lines.append(f"{prefix}- {name}{req_marker}: {prop_type} - {desc}")
+            else:
+                lines.append(f"{prefix}- {name}{req_marker}: {prop_type}")
+    elif schema.get("type") == "array":
+        items = schema.get("items", {})
+        if "$ref" in items:
+            ref_name = items["$ref"].split("/")[-1]
+            lines.append(f"{prefix}Array of {ref_name}")
+        else:
+            lines.append(f"{prefix}Array of {items.get('type', 'object')}")
+
+    return "\n".join(lines)
 
 
 def register_schema_resources(mcp: FastMCP) -> None:
@@ -195,80 +281,112 @@ and querying SYSPRO ERP databases.
 Use `search_tables` with module="{module.upper()}" to see all tables in this module.
 """
 
-    @mcp.resource("phx://schemas")
-    async def phx_schemas_list() -> str:
-        """List available PhX SYSPRO business object schemas."""
-        return """# PhX SYSPRO Business Object Schemas
+    @mcp.resource("phx://api")
+    async def phx_api_overview() -> str:
+        """PhX API overview with all endpoints grouped by category."""
+        swagger = await _load_swagger()
+        if not swagger:
+            phx_url = os.getenv("PHX_URL", "")
+            return f"Error: Could not fetch API docs from {phx_url}/swagger/v1/swagger.json. Check PHX_URL is configured."
 
-XML Schema Definition (XSD) files for SYSPRO business objects.
+        # Group endpoints by tag
+        endpoints_by_tag: dict[str, list[tuple[str, str, str, str]]] = {}
+        for path, methods in swagger.get("paths", {}).items():
+            for method, details in methods.items():
+                if method in ("get", "post", "put", "delete", "patch"):
+                    tags = details.get("tags", ["Other"])
+                    summary = details.get("summary", "")
+                    op_id = details.get("operationId", "")
+                    for tag in tags:
+                        if tag not in endpoints_by_tag:
+                            endpoints_by_tag[tag] = []
+                        endpoints_by_tag[tag].append((method.upper(), path, summary, op_id))
 
-## Schema Naming Convention
-- `{BO}.XSD` - Parameters schema (options, filters)
-- `{BO}DOC.XSD` - Document schema (data payload)
+        lines = ["# PhX API Reference\n"]
+        lines.append("SYSPRO WCF REST wrapper providing modern HTTP access to SYSPRO business objects.\n")
+        lines.append("## Authentication\n")
+        lines.append("**DirectAuth endpoints** (BO Call): Credentials in request body")
+        lines.append("**TokenAuth endpoints**: Requires X-UserId header from /api/Auth/logon\n")
 
-## Query Business Objects
-| BO | Description | URI |
-|----|-------------|-----|
-| INVQRY | Inventory Query | `phx://schemas/INVQRY` |
-| WIPQRY | WIP Job Query | `phx://schemas/WIPQRY` |
-| WIPQVA | WIP Variance Query | `phx://schemas/WIPQVA` |
-| WIPQ40 | WIP Multi-level Query | `phx://schemas/WIPQ40` |
-| PORQRQ | Requisition Query | `phx://schemas/PORQRQ` |
-| INVQGD | Goods In Transit Query | `phx://schemas/INVQGD` |
+        # Sort tags: prioritize Query and WIP
+        priority_tags = ["Query (BO Call)", "WIP Transactions (BO Call)", "Requisition (BO Call)"]
+        sorted_tags = [t for t in priority_tags if t in endpoints_by_tag]
+        sorted_tags += [t for t in sorted(endpoints_by_tag.keys()) if t not in priority_tags]
 
-## Transaction Business Objects
-| BO | Description | URI |
-|----|-------------|-----|
-| WIPTLP | Post Labour | `phx://schemas/WIPTLP` |
-| WIPTJR | Post Job Receipt | `phx://schemas/WIPTJR` |
-| WIPTMI | Post Material Issue | `phx://schemas/WIPTMI` |
-| PORTRA | Requisition Approve | `phx://schemas/PORTRA` |
-| PORTRR | Requisition Route | `phx://schemas/PORTRR` |
+        for tag in sorted_tags:
+            endpoints = endpoints_by_tag[tag]
+            lines.append(f"\n## {tag}\n")
+            lines.append("| Method | Endpoint | Description |")
+            lines.append("|--------|----------|-------------|")
+            for method, path, summary, _ in sorted(endpoints, key=lambda x: x[1]):
+                lines.append(f"| {method} | `{path}` | {summary} |")
 
-## Inventory Movement Business Objects
-| BO | Description | URI |
-|----|-------------|-----|
-| INVTMA | Inventory Adjustment | `phx://schemas/INVTMA` |
-| INVTMO | Warehouse Transfer Out | `phx://schemas/INVTMO` |
-| INVTMI | Warehouse Transfer In | `phx://schemas/INVTMI` |
-| INVTMB | Bin Transfer | `phx://schemas/INVTMB` |
-| INVTMT | GIT Transfer Out | `phx://schemas/INVTMT` |
-| INVTMN | GIT Transfer In | `phx://schemas/INVTMN` |
+        lines.append("\n## Usage\n")
+        lines.append("Get endpoint details: `phx://api/endpoint/{path-with-dashes}`")
+        lines.append("Example: `phx://api/endpoint/api-QueryBo-inventory`")
 
-## Usage
-Load a schema with: `phx://schemas/{BO_CODE}`
-Example: `phx://schemas/WIPTLP` for labour posting schema
-"""
+        return "\n".join(lines)
 
-    @mcp.resource("phx://schemas/{bo_code}")
-    async def phx_schema(bo_code: str) -> str:
-        """Get XSD schema for a SYSPRO business object.
+    @mcp.resource("phx://api/endpoint/{endpoint}")
+    async def phx_api_endpoint(endpoint: str) -> str:
+        """Get detailed documentation for a specific PhX API endpoint.
 
         Args:
-            bo_code: Business object code (e.g., WIPTLP, INVQRY)
+            endpoint: Endpoint path without leading slash, with - instead of /
+                      Example: api-QueryBo-inventory for /api/QueryBo/inventory
         """
-        bo_code = bo_code.upper()
+        swagger = await _load_swagger()
+        if not swagger:
+            phx_url = os.getenv("PHX_URL", "")
+            return f"Error: Could not fetch API docs from {phx_url}/swagger/v1/swagger.json. Check PHX_URL is configured."
 
-        # Try to find both parameter and document schemas
-        param_file = SCHEMAS_DIR / f"{bo_code}.XSD"
-        doc_file = SCHEMAS_DIR / f"{bo_code}DOC.XSD"
+        # Convert dashes back to slashes for path lookup
+        path = "/" + endpoint.replace("-", "/")
 
-        result_parts = [f"# {bo_code} Schema\n"]
+        path_info = swagger.get("paths", {}).get(path)
+        if not path_info:
+            # List available endpoints
+            available = list(swagger.get("paths", {}).keys())[:15]
+            formatted = [p.replace("/", "-")[1:] for p in available]
+            return (
+                f"Endpoint '{path}' not found.\n\n"
+                f"Use dashes instead of slashes in the endpoint path.\n"
+                f"Example: `phx://api/endpoint/api-QueryBo-inventory`\n\n"
+                f"Available endpoints:\n" + "\n".join(f"- {p}" for p in formatted)
+            )
 
-        if param_file.exists():
-            result_parts.append(f"## Parameters Schema ({bo_code}.XSD)\n")
-            result_parts.append("```xml")
-            result_parts.append(param_file.read_text(encoding="utf-8"))
-            result_parts.append("```\n")
+        lines = [f"# {path}\n"]
 
-        if doc_file.exists():
-            result_parts.append(f"## Document Schema ({bo_code}DOC.XSD)\n")
-            result_parts.append("```xml")
-            result_parts.append(doc_file.read_text(encoding="utf-8"))
-            result_parts.append("```\n")
+        for method, details in path_info.items():
+            if method not in ("get", "post", "put", "delete", "patch"):
+                continue
 
-        if not param_file.exists() and not doc_file.exists():
-            available = [f.stem for f in SCHEMAS_DIR.glob("*.XSD") if not f.stem.endswith("DOC")]
-            return f"Schema '{bo_code}' not found.\n\nAvailable: {', '.join(sorted(set(available)))}"
+            lines.append(f"## {method.upper()}\n")
+            lines.append(f"**{details.get('summary', 'No summary')}**\n")
 
-        return "\n".join(result_parts)
+            if details.get("description"):
+                lines.append(details["description"] + "\n")
+
+            # Request body
+            if "requestBody" in details:
+                lines.append("### Request Body\n")
+                content = details["requestBody"].get("content", {})
+                json_content = content.get("application/json", content.get("text/json", {}))
+                if "schema" in json_content:
+                    schema = json_content["schema"]
+                    if "$ref" in schema:
+                        schema_name = schema["$ref"].split("/")[-1]
+                        resolved = _resolve_ref(swagger, schema["$ref"])
+                        lines.append(f"**{schema_name}**\n")
+                        lines.append(_format_schema(swagger, resolved))
+                        lines.append("")
+
+            # Responses
+            lines.append("### Responses\n")
+            for status, resp in details.get("responses", {}).items():
+                desc = resp.get("description", "")
+                lines.append(f"- **{status}**: {desc}")
+
+            lines.append("")
+
+        return "\n".join(lines)

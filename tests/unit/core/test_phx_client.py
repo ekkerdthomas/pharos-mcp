@@ -549,3 +549,215 @@ class TestPhxExceptions:
         )
         assert isinstance(error, PhxError)
         assert error.status_code == 400
+
+
+class TestPhxClientInventoryMovements:
+    """Test PhxClient inventory movement methods."""
+
+    @pytest.fixture
+    def client(self) -> PhxClient:
+        """Create a configured PhxClient for testing."""
+        return PhxClient(
+            base_url="http://test.local:5000",
+            operator="OP",
+            company_id="CO",
+        )
+
+    @pytest.mark.asyncio
+    async def test_post_immediate_warehouse_transfer(self, client: PhxClient) -> None:
+        """post_immediate_warehouse_transfer should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True, "journal": "TRF001"}
+
+            result = await client.post_immediate_warehouse_transfer(
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=10.0,
+                notation="Test transfer",
+                from_bin="BIN1",
+                to_bin="BIN2",
+                reference="REF001",
+            )
+
+            call_args = mock_request.call_args
+            assert call_args.args[0] == "POST"
+            assert "/api/InvMovements/post-immediate-warehouse-transfer" in call_args.args[1]
+            data = call_args.args[2]
+            assert "items" in data
+            assert len(data["items"]) == 1
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["fromWarehouse"] == "WH1"
+            assert item["toWarehouse"] == "WH2"
+            assert item["quantity"] == "10.0"  # Should be string
+            assert item["notation"] == "Test transfer"
+            assert item["fromBin"] == "BIN1"
+            assert item["toBin"] == "BIN2"
+            assert item["reference"] == "REF001"
+
+    @pytest.mark.asyncio
+    async def test_post_bin_transfer(self, client: PhxClient) -> None:
+        """post_bin_transfer should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_bin_transfer(
+                stock_code="TEST001",
+                warehouse="WH1",
+                from_bin="BIN1",
+                to_bin="BIN2",
+                quantity=5.0,
+                notation="Bin transfer",
+            )
+
+            call_args = mock_request.call_args
+            data = call_args.args[2]
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["warehouse"] == "WH1"
+            assert item["fromBin"] == "BIN1"
+            assert item["toBin"] == "BIN2"
+            assert item["quantity"] == "5.0"
+            assert item["notation"] == "Bin transfer"
+
+    @pytest.mark.asyncio
+    async def test_post_inventory_adjustment(self, client: PhxClient) -> None:
+        """post_inventory_adjustment should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_inventory_adjustment(
+                stock_code="TEST001",
+                warehouse="WH1",
+                quantity=-5.0,
+                notation="Cycle count adjustment",
+                bin_location="BIN1",
+                unit_cost=10.50,
+            )
+
+            call_args = mock_request.call_args
+            data = call_args.args[2]
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["warehouse"] == "WH1"
+            assert item["quantity"] == "-5.0"
+            assert item["notation"] == "Cycle count adjustment"
+            assert item["bin"] == "BIN1"
+            assert item["unitCost"] == "10.5"
+
+    @pytest.mark.asyncio
+    async def test_post_expense_issue(self, client: PhxClient) -> None:
+        """post_expense_issue should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_expense_issue(
+                stock_code="TEST001",
+                warehouse="WH1",
+                quantity=3.0,
+                notation="Expense issue",
+                ledger_code="6100-000",
+            )
+
+            call_args = mock_request.call_args
+            data = call_args.args[2]
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["warehouse"] == "WH1"
+            assert item["quantity"] == "3.0"
+            assert item["notation"] == "Expense issue"
+            assert item["ledgerCode"] == "6100-000"
+
+    @pytest.mark.asyncio
+    async def test_post_git_transfer_out(self, client: PhxClient) -> None:
+        """post_git_transfer_out should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True, "gitReference": "GIT001"}
+
+            result = await client.post_git_transfer_out(
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=20.0,
+                notation="GIT transfer out",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvMovements/post-git-warehouse-transfer-out" in call_args.args[1]
+            data = call_args.args[2]
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["fromWarehouse"] == "WH1"
+            assert item["toWarehouse"] == "WH2"
+            assert item["quantity"] == "20.0"
+
+    @pytest.mark.asyncio
+    async def test_post_git_transfer_in(self, client: PhxClient) -> None:
+        """post_git_transfer_in should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_git_transfer_in(
+                stock_code="TEST001",
+                warehouse="WH2",
+                quantity=20.0,
+                notation="GIT transfer in",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvMovements/post-git-warehouse-transfer-in" in call_args.args[1]
+            data = call_args.args[2]
+            item = data["items"][0]
+            assert item["stockCode"] == "TEST001"
+            assert item["warehouse"] == "WH2"
+            assert item["quantity"] == "20.0"
+
+    @pytest.mark.asyncio
+    async def test_post_warehouse_transfer_out(self, client: PhxClient) -> None:
+        """post_warehouse_transfer_out should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_warehouse_transfer_out(
+                stock_code="TEST001",
+                from_warehouse="WH1",
+                to_warehouse="WH2",
+                quantity=15.0,
+                notation="Transfer out",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvMovements/post-warehouse-transfer-out" in call_args.args[1]
+
+    @pytest.mark.asyncio
+    async def test_post_warehouse_transfer_in(self, client: PhxClient) -> None:
+        """post_warehouse_transfer_in should POST with correct structure."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"success": True}
+
+            result = await client.post_warehouse_transfer_in(
+                stock_code="TEST001",
+                warehouse="WH2",
+                quantity=15.0,
+                notation="Transfer in",
+            )
+
+            call_args = mock_request.call_args
+            assert "/api/InvMovements/post-warehouse-transfer-in" in call_args.args[1]
+
+    @pytest.mark.asyncio
+    async def test_call_business_object_endpoint(self, client: PhxClient) -> None:
+        """call_business_object should use correct endpoint path."""
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"data": "test"}
+
+            result = await client.call_business_object(
+                bo_method="Query",
+                business_object="INVQRY",
+                xml_in="<Query/>",
+            )
+
+            call_args = mock_request.call_args
+            # Verify the correct endpoint is used (fixed from /api/GenericBo/call)
+            assert "/api/BusinessObject/call" in call_args.args[1]
